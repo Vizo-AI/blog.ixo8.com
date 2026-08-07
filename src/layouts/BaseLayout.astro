@@ -17,15 +17,36 @@ const {
 
 const pageTitle = title.includes('Vizo AI') ? title : `${title} — Vizo AI`;
 const canonicalUrl = new URL(canonical, Astro.site ?? Astro.url.origin);
+const currentPath = Astro.url.pathname;
+const isCurrent = (href: string) => href === '/' ? currentPath === href : currentPath.startsWith(href);
 ---
 <!doctype html>
 <html lang="en">
   <head>
+    <script is:inline>
+      (() => {
+        const root = document.documentElement;
+        const media = window.matchMedia('(prefers-color-scheme: dark)');
+        let preference = 'system';
+
+        try {
+          const stored = window.localStorage.getItem('vizo-theme');
+          if (stored === 'light' || stored === 'dark' || stored === 'system') preference = stored;
+        } catch {
+          // Storage can be unavailable in privacy-restricted contexts.
+        }
+
+        const resolved = preference === 'system' ? (media.matches ? 'dark' : 'light') : preference;
+        root.dataset.theme = resolved;
+        root.dataset.themePreference = preference;
+        root.style.colorScheme = resolved;
+      })();
+    </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width" />
     <meta name="generator" content={Astro.generator} />
     <meta name="description" content={description} />
-    <meta name="theme-color" content="#08090b" />
+    <meta id="theme-color" name="theme-color" content="#08090b" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="canonical" href={canonicalUrl} />
     <meta property="og:type" content={type} />
@@ -43,11 +64,56 @@ const canonicalUrl = new URL(canonical, Astro.site ?? Astro.url.origin);
           <span class="brand-mark" aria-hidden="true"></span>
           <span>Vizo AI</span>
         </a>
-        <nav class="nav-links" aria-label="Primary navigation">
-          <a href="/explore/">Explore</a>
-          <a href="/about/">About</a>
-          <a class="nav-cta" href="/explore/">Search <span aria-hidden="true">⌘K</span></a>
-        </nav>
+        <div class="nav-actions">
+          <nav class="nav-links" aria-label="Primary navigation">
+            <a href="/explore/" aria-current={isCurrent('/explore/') ? 'page' : undefined}>Explore</a>
+            <a href="/about/" aria-current={isCurrent('/about/') ? 'page' : undefined}>About</a>
+            <a class="search-link" href="/explore/">Search <span aria-hidden="true">⌘K</span></a>
+          </nav>
+
+          <details class="mobile-nav" data-mobile-nav>
+            <summary class="icon-button" aria-label="Open navigation">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 7h16M4 12h16M4 17h16"></path>
+              </svg>
+            </summary>
+            <nav class="popover mobile-nav-menu" aria-label="Mobile navigation">
+              <a href="/explore/" aria-current={isCurrent('/explore/') ? 'page' : undefined}>Explore</a>
+              <a href="/about/" aria-current={isCurrent('/about/') ? 'page' : undefined}>About</a>
+              <a href="/explore/?focus=search">Search archive</a>
+            </nav>
+          </details>
+
+          <div class="theme-picker" data-theme-picker>
+            <button
+              class="icon-button theme-trigger"
+              type="button"
+              aria-label="Choose color theme"
+              aria-haspopup="true"
+              aria-expanded="false"
+              data-theme-trigger
+            >
+              <svg class="theme-icon theme-icon--sun" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="3.25"></circle>
+                <path d="M12 2.75v2M12 19.25v2M21.25 12h-2M4.75 12h-2M18.54 5.46l-1.42 1.42M6.88 17.12l-1.42 1.42M18.54 18.54l-1.42-1.42M6.88 6.88 5.46 5.46"></path>
+              </svg>
+              <svg class="theme-icon theme-icon--moon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M19.4 15.3A8 8 0 0 1 8.7 4.6 8 8 0 1 0 19.4 15.3Z"></path>
+              </svg>
+            </button>
+            <div class="popover theme-menu" data-theme-menu hidden role="group" aria-label="Color theme">
+              <button type="button" data-theme-value="light" aria-pressed="false">
+                <span>Light</span><span class="theme-check" aria-hidden="true">✓</span>
+              </button>
+              <button type="button" data-theme-value="dark" aria-pressed="false">
+                <span>Dark</span><span class="theme-check" aria-hidden="true">✓</span>
+              </button>
+              <button type="button" data-theme-value="system" aria-pressed="false">
+                <span>System</span><span class="theme-check" aria-hidden="true">✓</span>
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </header>
     <main id="content"><slot /></main>
@@ -55,7 +121,97 @@ const canonicalUrl = new URL(canonical, Astro.site ?? Astro.url.origin);
       <div class="shell">Vizo AI · Research intelligence with source-aware editorial standards.</div>
     </footer>
     <script is:inline>
+      const root = document.documentElement;
+      const themePicker = document.querySelector('[data-theme-picker]');
+      const themeTrigger = document.querySelector('[data-theme-trigger]');
+      const themeMenu = document.querySelector('[data-theme-menu]');
+      const themeOptions = [...document.querySelectorAll('[data-theme-value]')];
+      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)');
+      const themeColor = document.querySelector('#theme-color');
+
+      function setTheme(preference, persist = true) {
+        const allowed = ['light', 'dark', 'system'];
+        const nextPreference = allowed.includes(preference) ? preference : 'system';
+        const resolved = nextPreference === 'system' ? (systemTheme.matches ? 'dark' : 'light') : nextPreference;
+
+        root.dataset.theme = resolved;
+        root.dataset.themePreference = nextPreference;
+        root.style.colorScheme = resolved;
+        themeColor?.setAttribute('content', resolved === 'dark' ? '#08090b' : '#f4f6f3');
+        themeOptions.forEach((option) => {
+          option.setAttribute('aria-pressed', String(option.dataset.themeValue === nextPreference));
+        });
+
+        if (persist) {
+          try {
+            window.localStorage.setItem('vizo-theme', nextPreference);
+          } catch {
+            // Keep the in-memory choice when storage is unavailable.
+          }
+        }
+      }
+
+      function closeThemeMenu({ restoreFocus = false } = {}) {
+        if (!(themeMenu instanceof HTMLElement) || !(themeTrigger instanceof HTMLButtonElement)) return;
+        themeMenu.hidden = true;
+        themeTrigger.setAttribute('aria-expanded', 'false');
+        if (restoreFocus) themeTrigger.focus();
+      }
+
+      function openThemeMenu() {
+        if (!(themeMenu instanceof HTMLElement) || !(themeTrigger instanceof HTMLButtonElement)) return;
+        themeMenu.hidden = false;
+        themeTrigger.setAttribute('aria-expanded', 'true');
+      }
+
+      setTheme(root.dataset.themePreference ?? 'system', false);
+
+      themeTrigger?.addEventListener('click', () => {
+        if (themeMenu instanceof HTMLElement && themeMenu.hidden) openThemeMenu();
+        else closeThemeMenu();
+      });
+
+      themeOptions.forEach((option, index) => {
+        option.addEventListener('click', () => {
+          setTheme(option.dataset.themeValue ?? 'system');
+          closeThemeMenu({ restoreFocus: true });
+        });
+
+        option.addEventListener('keydown', (event) => {
+          if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+          event.preventDefault();
+          const targetIndex = event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? themeOptions.length - 1
+              : (index + (event.key === 'ArrowDown' ? 1 : -1) + themeOptions.length) % themeOptions.length;
+          themeOptions[targetIndex]?.focus();
+        });
+      });
+
+      systemTheme.addEventListener('change', () => {
+        if (root.dataset.themePreference === 'system') setTheme('system', false);
+      });
+
+      document.addEventListener('click', (event) => {
+        if (themePicker instanceof HTMLElement && !themePicker.contains(event.target)) closeThemeMenu();
+
+        document.querySelectorAll('[data-mobile-nav][open]').forEach((nav) => {
+          if (nav instanceof HTMLElement && !nav.contains(event.target)) nav.removeAttribute('open');
+        });
+      });
+
+      document.querySelectorAll('[data-mobile-nav] a').forEach((link) => {
+        link.addEventListener('click', () => link.closest('details')?.removeAttribute('open'));
+      });
+
       document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+          closeThemeMenu({ restoreFocus: themeTrigger?.getAttribute('aria-expanded') === 'true' });
+          document.querySelectorAll('[data-mobile-nav][open]').forEach((nav) => nav.removeAttribute('open'));
+          return;
+        }
+
         if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'k') return;
 
         event.preventDefault();

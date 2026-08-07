@@ -2,23 +2,54 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 ---
 <BaseLayout title="About" description="How Vizo AI researches, produces, and publishes source-aware analysis.">
-  <section class="hero" style="min-height:52vh">
+  <section class="page-intro about-intro">
     <div class="shell">
       <div class="eyebrow">About the publication</div>
       <h1>Research built for scrutiny.</h1>
       <p class="hero-copy">Vizo AI publishes analysis on AI systems, engineering, infrastructure, policy, and emerging technology. The publication is designed to make research provenance visible rather than hide it behind polished prose.</p>
     </div>
   </section>
-  <section class="section">
-    <div class="shell" style="max-width:820px">
-      <div class="prose" style="width:100%;padding-top:0">
-        <h2>Editorial approach</h2>
-        <p>Articles may be produced with AI assistance, but factual claims should be grounded in identifiable source material. The production system is being upgraded to record sources, validation state, corrections, and editorial metadata alongside each article.</p>
-        <h2>What this site is becoming</h2>
-        <p>The long-term product is a searchable research archive: strong long-form reading when you want depth, fast retrieval when you need a fact or prior analysis, and contextual AI tools that answer from the published corpus with citations.</p>
-        <h2>Corrections and transparency</h2>
-        <p>When structured source metadata is available it is shown on the article. The trust layer will expand as the automated publishing pipeline is upgraded. Material corrections should be reflected transparently in article metadata rather than silently overwritten.</p>
+  <section class="section about-editorial" aria-labelledby="principles-title">
+    <div class="shell about-layout">
+      <div class="about-heading">
+        <div class="eyebrow">Editorial principles</div>
+        <h2 id="principles-title">How the publication approaches its work.</h2>
+        <p>Clear standards make research more useful—and easier to challenge when the evidence changes.</p>
       </div>
+
+      <div class="principle-list">
+        <article class="principle">
+          <span class="principle-number" aria-hidden="true">01</span>
+          <div>
+            <h3>Editorial approach</h3>
+            <p>Articles may be produced with AI assistance, but factual claims should be grounded in identifiable source material. The production system is being upgraded to record sources, validation state, corrections, and editorial metadata alongside each article.</p>
+          </div>
+        </article>
+        <article class="principle">
+          <span class="principle-number" aria-hidden="true">02</span>
+          <div>
+            <h3>What this site is becoming</h3>
+            <p>The long-term product is a searchable research archive: strong long-form reading when you want depth, fast retrieval when you need a fact or prior analysis, and contextual AI tools that answer from the published corpus with citations.</p>
+          </div>
+        </article>
+        <article class="principle">
+          <span class="principle-number" aria-hidden="true">03</span>
+          <div>
+            <h3>Corrections and transparency</h3>
+            <p>When structured source metadata is available it is shown on the article. The trust layer will expand as the automated publishing pipeline is upgraded. Material corrections should be reflected transparently in article metadata rather than silently overwritten.</p>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--compact">
+    <div class="shell about-cta">
+      <div>
+        <div class="eyebrow">Research archive</div>
+        <h2>Explore the published intelligence.</h2>
+      </div>
+      <a class="button-link" href="/explore/">Open Explore <span aria-hidden="true">→</span></a>
     </div>
   </section>
 </BaseLayout>
