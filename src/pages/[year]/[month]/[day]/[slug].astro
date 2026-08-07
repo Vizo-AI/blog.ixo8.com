@@ -1,6 +1,7 @@
 ---
 import { getCollection, render } from 'astro:content';
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import { formatPostDate, readingMinutes } from '../../../../lib/posts';
 
 export async function getStaticPaths() {
   const posts = await getCollection('posts');
@@ -16,13 +17,8 @@ const { post } = Astro.props;
 const { Content, headings } = await render(post);
 const description = post.data.description ?? 'Research analysis from Vizo AI.';
 const sourceCount = post.data.source_count ?? post.data.sources.length;
-const date = new Intl.DateTimeFormat('en-US', {
-  month: 'long',
-  day: 'numeric',
-  year: 'numeric',
-  timeZone: 'UTC'
-}).format(post.data.date);
-const minutes = Math.max(1, Math.round((post.body?.split(/\s+/).length ?? 700) / 220));
+const date = formatPostDate(post.data.date, 'long');
+const minutes = readingMinutes(post.body);
 
 // One favicon per distinct source domain, not per URL — several sources can
 // share a domain (e.g. two arXiv papers) and only need one icon.
@@ -48,7 +44,6 @@ const sourceDomains = [...sourcesByDomain.entries()];
           <span>{date}</span>
           <span>{minutes} min read</span>
           {sourceCount > 0 && <span>{sourceCount} sources</span>}
-          {post.data.generated_with_ai && <span>AI-assisted</span>}
         </div>
         <hr class="article-rule" />
       </div>
@@ -77,10 +72,10 @@ const sourceDomains = [...sourcesByDomain.entries()];
             <span>—</span>
           )}
         </div>
-        <div class="trust-item"><strong>Production</strong><span>{post.data.generated_with_ai ? 'AI-assisted' : 'Editorial'}</span></div>
+        <div class="trust-item"><strong>Format</strong><span>Research analysis</span></div>
       </div>
       {post.data.sources.length > 0 && (
-        <div style="margin-top:24px">
+        <div class="trust-sources">
           <div class="eyebrow">Sources</div>
           <ol>
             {post.data.sources.map((source) => <li><a href={source} rel="noreferrer">{source}</a></li>)}

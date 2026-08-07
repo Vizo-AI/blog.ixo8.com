@@ -1,26 +1,13 @@
 ---
-import { getCollection, type CollectionEntry } from 'astro:content';
+import { getCollection } from 'astro:content';
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { formatPostDate, postHref } from '../lib/posts';
 
 const posts = (await getCollection('posts')).sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
 const featured = posts.find((post) => post.data.featured) ?? posts[0];
 const latest = posts.filter((post) => post.id !== featured?.id).slice(0, 8);
 
-function hrefFor(post: CollectionEntry<'posts'>) {
-  const match = post.id.match(/^(\d{4})-(\d{2})-(\d{2})-(.+)$/);
-  if (!match) return '/explore/';
-  const [, year, month, day, slug] = match;
-  return `/${year}/${month}/${day}/${slug}/`;
-}
-
-function formattedDate(date: Date) {
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    timeZone: 'UTC'
-  }).format(date);
-}
+const hasFeaturedImage = Boolean(featured?.data.hero);
 ---
 <BaseLayout>
   <section class="hero">
@@ -38,13 +25,20 @@ function formattedDate(date: Date) {
           <h2 class="section-title">Featured intelligence</h2>
           <span class="meta">Latest research brief</span>
         </div>
-        <a class="feature" href={hrefFor(featured)}>
-          <div class="feature-visual" aria-hidden="true"></div>
+        <a
+          class:list={['feature', { 'feature--with-image': hasFeaturedImage, 'feature--text-only': !hasFeaturedImage }]}
+          href={postHref(featured)}
+        >
+          {hasFeaturedImage && (
+            <div class="feature-visual">
+              <img src={featured.data.hero} alt={featured.data.hero_alt ?? ''} loading="lazy" />
+            </div>
+          )}
           <div class="feature-copy">
             <div class="eyebrow">Analysis</div>
             <h2>{featured.data.title}</h2>
             <p>{featured.data.description ?? 'A deeper look at the forces, incentives, and implications behind the headline.'}</p>
-            <div class="meta">{formattedDate(featured.data.date)} · Read analysis →</div>
+            <div class="meta">{formatPostDate(featured.data.date)} · Read analysis →</div>
           </div>
         </a>
       </div>
@@ -59,8 +53,8 @@ function formattedDate(date: Date) {
       </div>
       <div class="article-list">
         {latest.map((post) => (
-          <a class="article-row" href={hrefFor(post)}>
-            <span class="meta">{formattedDate(post.data.date)}</span>
+          <a class="article-row" href={postHref(post)}>
+            <span class="meta">{formatPostDate(post.data.date)}</span>
             <h3>{post.data.title}</h3>
             <span class="meta">Analysis →</span>
           </a>
@@ -70,12 +64,12 @@ function formattedDate(date: Date) {
   </section>
 
   <section class="section">
-    <div class="shell feature" style="min-height: 280px; grid-template-columns: 1fr;">
-      <div class="feature-copy" style="justify-content:center; max-width:780px;">
+    <div class="shell archive-cta">
+      <div class="archive-cta-copy">
         <div class="eyebrow">Research archive</div>
         <h2>Search the intelligence layer.</h2>
         <p>Find ideas, companies, technologies, policy shifts, and prior analysis across the full publication.</p>
-        <a class="nav-cta" style="width:max-content" href="/explore/">Open Explore</a>
+        <a class="button-link" href="/explore/">Open Explore <span aria-hidden="true">→</span></a>
       </div>
     </div>
   </section>

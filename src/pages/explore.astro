@@ -1,50 +1,115 @@
 ---
-import { getCollection, type CollectionEntry } from 'astro:content';
+import { getCollection } from 'astro:content';
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { formatPostDate, postHref, readingMinutes } from '../lib/posts';
 
 const posts = (await getCollection('posts')).sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
-
-function hrefFor(post: CollectionEntry<'posts'>) {
-  const match = post.id.match(/^(\d{4})-(\d{2})-(\d{2})-(.+)$/);
-  if (!match) return '#';
-  const [, year, month, day, slug] = match;
-  return `/${year}/${month}/${day}/${slug}/`;
-}
-
-function formattedDate(date: Date) {
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    timeZone: 'UTC'
-  });
-}
+const searchMetadata = Object.fromEntries(posts.map((post) => [
+  postHref(post),
+  {
+    date: formatPostDate(post.data.date, 'long'),
+    minutes: readingMinutes(post.body),
+    description: post.data.description ?? ''
+  }
+]));
+const serializedSearchMetadata = JSON.stringify(searchMetadata).replace(/</g, '\\u003c');
 ---
 <BaseLayout title="Explore research" description="Search and explore the Vizo AI research archive.">
-  <section class="search-wrap">
-    <div class="shell" style="max-width:900px">
-      <div class="eyebrow">Research archive</div>
-      <h1 style="font-size:clamp(2.8rem,7vw,5.8rem);line-height:.98;letter-spacing:-.055em;margin:18px 0 22px">Search the intelligence layer.</h1>
-      <p style="color:var(--muted);max-width:660px;margin-bottom:34px">Search published analysis by company, technology, policy, concept, or phrase.</p>
-      <label for="research-search" class="meta">Full-text search</label>
-      <input id="research-search" class="search-input" type="search" placeholder="Search research…" autocomplete="off" />
-      <div id="search-status" class="meta" style="margin-top:12px" aria-live="polite"></div>
-      <div id="search-results" class="search-results">
+  <section class="explore-page">
+    <div class="shell explore-shell">
+      <header class="explore-intro">
+        <div class="eyebrow">Research archive</div>
+        <h1>Search the intelligence layer.</h1>
+        <p>Search published analysis by company, technology, policy, concept, or phrase.</p>
+      </header>
+
+      <div class="search-panel" role="search">
+        <label for="research-search">Full-text search</label>
+        <div class="search-control">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="11" cy="11" r="6.5"></circle>
+            <path d="m16 16 4.25 4.25"></path>
+          </svg>
+          <input id="research-search" class="search-input" type="search" placeholder="Search research…" autocomplete="off" />
+          <button class="search-clear" type="button" data-search-clear hidden>Clear</button>
+        </div>
+      </div>
+
+      <div class="results-heading">
+        <h2 id="results-title">All intelligence</h2>
+        <div id="search-status" class="meta" aria-live="polite">{posts.length} {posts.length === 1 ? 'article' : 'articles'}</div>
+      </div>
+
+      <div id="search-results" class="archive-list" aria-labelledby="results-title">
         {posts.map((post) => (
-          <a class="search-result fallback-result" href={hrefFor(post)}>
-            <h2>{post.data.title}</h2>
-            <p>{post.data.description ?? formattedDate(post.data.date)}</p>
+          <a
+            class="archive-row fallback-result"
+            href={postHref(post)}
+            data-search-text={`${post.data.title} ${post.data.description ?? ''}`.toLowerCase()}
+          >
+            <span class="archive-type">Analysis</span>
+            <span class="archive-content">
+              <span class="archive-title">{post.data.title}</span>
+              {post.data.description && <span class="archive-excerpt">{post.data.description}</span>}
+              <span class="archive-meta">{formatPostDate(post.data.date, 'long')} · {readingMinutes(post.body)} min read</span>
+            </span>
+            <span class="archive-arrow" aria-hidden="true">→</span>
           </a>
         ))}
+      </div>
+
+      <div id="search-empty" class="empty-state" hidden>
+        <div class="empty-state-icon" aria-hidden="true">⌕</div>
+        <h2>No intelligence matched <span data-empty-query></span>.</h2>
+        <p>Try a company, technology, or shorter phrase.</p>
+        <button class="button-link button-link--secondary" type="button" data-search-reset>Reset search</button>
       </div>
     </div>
   </section>
 
+  <script is:inline id="search-metadata" type="application/json" set:html={serializedSearchMetadata}></script>
   <script is:inline type="module">
     const input = document.querySelector('#research-search');
     const results = document.querySelector('#search-results');
     const status = document.querySelector('#search-status');
+    const resultsTitle = document.querySelector('#results-title');
+    const clearButton = document.querySelector('[data-search-clear]');
+    const resetButton = document.querySelector('[data-search-reset]');
+    const emptyState = document.querySelector('#search-empty');
+    const emptyQuery = document.querySelector('[data-empty-query]');
+    const metadataElement = document.querySelector('#search-metadata');
+    const initialMarkup = results?.innerHTML ?? '';
+    const initialCount = results?.querySelectorAll('.archive-row').length ?? 0;
+    const metadata = JSON.parse(metadataElement?.textContent ?? '{}');
     let pagefind;
+    let timer;
+    let requestToken = 0;
+
+    function countLabel(count, noun = 'result') {
+      return `${count} ${noun}${count === 1 ? '' : 's'}`;
+    }
+
+    function setEmpty(term, isEmpty) {
+      if (emptyState instanceof HTMLElement) emptyState.hidden = !isEmpty;
+      if (results instanceof HTMLElement) results.hidden = isEmpty;
+      if (emptyQuery instanceof HTMLElement) emptyQuery.textContent = `“${term}”`;
+    }
+
+    function restoreArchive({ focus = false } = {}) {
+      requestToken++;
+      if (results instanceof HTMLElement) {
+        results.innerHTML = initialMarkup;
+        results.hidden = false;
+      }
+      if (emptyState instanceof HTMLElement) emptyState.hidden = true;
+      if (status instanceof HTMLElement) status.textContent = countLabel(initialCount, 'article');
+      if (resultsTitle instanceof HTMLElement) resultsTitle.textContent = 'All intelligence';
+      if (clearButton instanceof HTMLButtonElement) clearButton.hidden = true;
+      if (input instanceof HTMLInputElement) {
+        input.value = '';
+        if (focus) input.focus();
+      }
+    }
 
     async function ensurePagefind() {
       if (!pagefind) {
@@ -53,46 +118,134 @@ function formattedDate(date: Date) {
           await pagefind.init();
         } catch (error) {
           console.warn('Pagefind unavailable; using title fallback.', error);
+          pagefind = null;
         }
       }
       return pagefind;
     }
 
-    async function search(query) {
-      const term = query.trim();
-      if (!term) {
-        document.querySelectorAll('.fallback-result').forEach((el) => el.hidden = false);
-        status.textContent = '';
-        return;
+    function appendSafeExcerpt(container, html) {
+      const parsed = new DOMParser().parseFromString(html, 'text/html');
+
+      function appendNode(node, parent) {
+        if (node.nodeType === Node.TEXT_NODE) {
+          parent.append(document.createTextNode(node.textContent ?? ''));
+          return;
+        }
+
+        if (!(node instanceof HTMLElement)) return;
+        const nextParent = node.tagName === 'MARK' ? document.createElement('mark') : parent;
+        if (nextParent !== parent) parent.append(nextParent);
+        node.childNodes.forEach((child) => appendNode(child, nextParent));
       }
 
-      const engine = await ensurePagefind();
-      if (!engine) {
-        let count = 0;
-        document.querySelectorAll('.fallback-result').forEach((el) => {
-          const match = el.textContent.toLowerCase().includes(term.toLowerCase());
-          el.hidden = !match;
-          if (match) count++;
-        });
-        status.textContent = `${count} matching articles`;
-        return;
-      }
-
-      const search = await engine.search(term);
-      const data = await Promise.all(search.results.slice(0, 20).map((result) => result.data()));
-      status.textContent = `${search.results.length} results`;
-      results.innerHTML = data.map((item) => `
-        <a class="search-result" href="${item.url}">
-          <h2>${item.meta?.title ?? item.url}</h2>
-          <p>${item.excerpt ?? ''}</p>
-        </a>`).join('');
+      parsed.body.childNodes.forEach((node) => appendNode(node, container));
     }
 
-    let timer;
+    function renderPagefindResults(items) {
+      if (!(results instanceof HTMLElement)) return;
+      const fragment = document.createDocumentFragment();
+
+      items.forEach((item) => {
+        const path = new URL(item.url, window.location.origin).pathname;
+        const post = metadata[path] ?? {};
+        const link = document.createElement('a');
+        link.className = 'archive-row';
+        link.href = item.url;
+
+        const type = document.createElement('span');
+        type.className = 'archive-type';
+        type.textContent = 'Analysis';
+
+        const content = document.createElement('span');
+        content.className = 'archive-content';
+
+        const title = document.createElement('span');
+        title.className = 'archive-title';
+        title.textContent = item.meta?.title ?? path;
+        content.append(title);
+
+        const excerpt = document.createElement('span');
+        excerpt.className = 'archive-excerpt';
+        appendSafeExcerpt(excerpt, item.excerpt ?? post.description ?? '');
+        if (excerpt.textContent?.trim()) content.append(excerpt);
+
+        const meta = document.createElement('span');
+        meta.className = 'archive-meta';
+        meta.textContent = post.date ? `${post.date} · ${post.minutes} min read` : 'Research analysis';
+        content.append(meta);
+
+        const arrow = document.createElement('span');
+        arrow.className = 'archive-arrow';
+        arrow.setAttribute('aria-hidden', 'true');
+        arrow.textContent = '→';
+
+        link.append(type, content, arrow);
+        fragment.append(link);
+      });
+
+      results.replaceChildren(fragment);
+      results.hidden = false;
+    }
+
+    function renderTitleFallback(term) {
+      if (!(results instanceof HTMLElement)) return;
+      results.innerHTML = initialMarkup;
+      const rows = [...results.querySelectorAll('.archive-row')];
+      let count = 0;
+
+      rows.forEach((row) => {
+        const matches = row.getAttribute('data-search-text')?.includes(term.toLowerCase()) ?? false;
+        if (row instanceof HTMLElement) row.hidden = !matches;
+        if (matches) count++;
+      });
+
+      setEmpty(term, count === 0);
+      if (status instanceof HTMLElement) status.textContent = `${countLabel(count)} · title search only`;
+    }
+
+    async function search(query) {
+      const term = query.trim();
+      const currentRequest = ++requestToken;
+
+      if (!term) {
+        restoreArchive();
+        return;
+      }
+
+      if (clearButton instanceof HTMLButtonElement) clearButton.hidden = false;
+      if (status instanceof HTMLElement) status.textContent = 'Searching…';
+      if (resultsTitle instanceof HTMLElement) resultsTitle.textContent = `Results for “${term}”`;
+      setEmpty(term, false);
+
+      const engine = await ensurePagefind();
+      if (currentRequest !== requestToken) return;
+
+      if (!engine) {
+        renderTitleFallback(term);
+        return;
+      }
+
+      const searchResult = await engine.search(term);
+      const data = await Promise.all(searchResult.results.slice(0, 20).map((result) => result.data()));
+      if (currentRequest !== requestToken) return;
+
+      setEmpty(term, data.length === 0);
+      if (data.length > 0) renderPagefindResults(data);
+      if (status instanceof HTMLElement) status.textContent = countLabel(searchResult.results.length);
+    }
+
     input?.addEventListener('input', (event) => {
-      clearTimeout(timer);
-      timer = setTimeout(() => search(event.target.value), 120);
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => search(event.target.value), 150);
     });
+
+    input?.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && event.target.value) restoreArchive({ focus: true });
+    });
+
+    clearButton?.addEventListener('click', () => restoreArchive({ focus: true }));
+    resetButton?.addEventListener('click', () => restoreArchive({ focus: true }));
 
     if (new URLSearchParams(window.location.search).get('focus') === 'search') input?.focus();
   </script>
