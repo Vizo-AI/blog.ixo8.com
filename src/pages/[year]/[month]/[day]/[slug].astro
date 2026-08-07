@@ -23,6 +23,19 @@ const date = new Intl.DateTimeFormat('en-US', {
   timeZone: 'UTC'
 }).format(post.data.date);
 const minutes = Math.max(1, Math.round((post.body?.split(/\s+/).length ?? 700) / 220));
+
+// One favicon per distinct source domain, not per URL — several sources can
+// share a domain (e.g. two arXiv papers) and only need one icon.
+const sourcesByDomain = new Map<string, string>();
+for (const url of post.data.sources) {
+  try {
+    const domain = new URL(url).hostname.replace(/^www\./, '');
+    if (!sourcesByDomain.has(domain)) sourcesByDomain.set(domain, url);
+  } catch {
+    // Malformed URL — skip rather than break the page.
+  }
+}
+const sourceDomains = [...sourcesByDomain.entries()];
 ---
 <BaseLayout title={post.data.title} description={description} type="article">
   <article>
@@ -49,7 +62,21 @@ const minutes = Math.max(1, Math.round((post.body?.split(/\s+/).length ?? 700) /
       <h2 id="trust-title">Research record</h2>
       <div class="trust-grid">
         <div class="trust-item"><strong>Published</strong><span>{date}</span></div>
-        <div class="trust-item"><strong>Sources recorded</strong><span>{sourceCount || 'Not yet structured'}</span></div>
+        <div class="trust-item">
+          <strong>Sources recorded</strong>
+          {sourceDomains.length > 0 ? (
+            <div class="source-icons">
+              {sourceDomains.map(([domain, url]) => (
+                <a href={url} rel="noreferrer" class="source-icon" title={domain}>
+                  <img src={`https://www.google.com/s2/favicons?domain=${domain}&sz=32`} alt="" width="16" height="16" loading="lazy" />
+                  <span>{domain}</span>
+                </a>
+              ))}
+            </div>
+          ) : (
+            <span>—</span>
+          )}
+        </div>
         <div class="trust-item"><strong>Production</strong><span>{post.data.generated_with_ai ? 'AI-assisted' : 'Editorial'}</span></div>
       </div>
       {post.data.sources.length > 0 && (
