@@ -1,0 +1,57 @@
+---
+import '../styles/global.css';
+
+interface Props {
+  title?: string;
+  description?: string;
+  canonical?: string;
+  type?: 'website' | 'article';
+}
+
+const {
+  title = 'Vizo AI — Research Intelligence',
+  description = 'AI research breakdowns, engineering notes, and intelligence from the Vizo AI research pipeline.',
+  canonical = Astro.url.pathname,
+  type = 'website'
+} = Astro.props;
+
+const pageTitle = title.includes('Vizo AI') ? title : `${title} — Vizo AI`;
+const canonicalUrl = new URL(canonical, Astro.site ?? Astro.url.origin);
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="generator" content={Astro.generator} />
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#08090b" />
+    <link rel="canonical" href={canonicalUrl} />
+    <meta property="og:type" content={type} />
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <title>{pageTitle}</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#content">Skip to content</a>
+    <header class="site-header">
+      <div class="shell nav">
+        <a class="brand" href="/" aria-label="Vizo AI home">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>Vizo AI</span>
+        </a>
+        <nav class="nav-links" aria-label="Primary navigation">
+          <a href="/explore/">Explore</a>
+          <a href="/about/">About</a>
+          <a class="nav-cta" href="/explore/">Search <span aria-hidden="true">⌘K</span></a>
+        </nav>
+      </div>
+    </header>
+    <main id="content"><slot /></main>
+    <footer class="site-footer">
+      <div class="shell">Vizo AI · Research intelligence with source-aware editorial standards.</div>
+    </footer>
+  </body>
+</html>
