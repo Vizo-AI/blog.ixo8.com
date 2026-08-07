@@ -29,10 +29,10 @@ What should professionals in energy, finance, and policy walk away with?
 
 | # | Lesson | Practical implication |
 |---|--------|------------------------|
-| 1 | **Regulatory certainty is a monetary asset** – Delays in permitting can erode project viability faster than any commodity price swing. Companies should factor “policy risk” into their financial models and lobby for faster, more transparent approval pipelines. |
-| 2 | **Strategic alignment trumps pure renewable targets** – Even if a project promises clean energy, it must fit broader national security and infrastructure plans. Investors need to screen not just for environmental impact but for grid and defense compatibility. |
-| 3 | **Exit options are expensive** – Buying out a partner can be cheaper than fighting through years of litigation and redesign. For firms with multiple offshore bids, a negotiated exit can preserve capital for higher‑return opportunities. |
-| 4 | **Policy signals drive capital flow** – The Treasury’s willingness to reallocate funds based on a project’s risk profile sets a precedent. Future offshore wind deals will likely demand stricter compliance with defense and grid guidelines before any federal dollars are committed. |
+| 1 | **Regulatory certainty is a monetary asset** | Delays in permitting can erode project viability faster than any commodity price swing. Companies should factor “policy risk” into their financial models and lobby for faster, more transparent approval pipelines. |
+| 2 | **Strategic alignment trumps pure renewable targets** | Even if a project promises clean energy, it must fit broader national security and infrastructure plans. Investors need to screen not just for environmental impact but for grid and defense compatibility. |
+| 3 | **Exit options are expensive** | Buying out a partner can be cheaper than fighting through years of litigation and redesign. For firms with multiple offshore bids, a negotiated exit can preserve capital for higher‑return opportunities. |
+| 4 | **Policy signals drive capital flow** | The Treasury’s willingness to reallocate funds based on a project’s risk profile sets a precedent. Future offshore wind deals will likely demand stricter compliance with defense and grid guidelines before any federal dollars are committed. |
 
 For those tracking the U.S. energy transition, the headline isn’t just about a German firm packing up; it’s a signal that **the era of “build it and hope for subsidies” is ending**. Projects now need to meet a triple‑test: environmental merit, grid security, and fiscal responsibility. Companies that can demonstrate rapid permitting, clear security clearances, and attractive LCOE will continue to attract capital. Those that can’t may find themselves on the receiving end of a $1.2 billion “goodbye” check.
 

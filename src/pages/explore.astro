@@ -1,0 +1,99 @@
+---
+import { getCollection, type CollectionEntry } from 'astro:content';
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const posts = (await getCollection('posts')).sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
+
+function hrefFor(post: CollectionEntry<'posts'>) {
+  const match = post.id.match(/^(\d{4})-(\d{2})-(\d{2})-(.+)$/);
+  if (!match) return '#';
+  const [, year, month, day, slug] = match;
+  return `/${year}/${month}/${day}/${slug}/`;
+}
+
+function formattedDate(date: Date) {
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    timeZone: 'UTC'
+  });
+}
+---
+<BaseLayout title="Explore research" description="Search and explore the Vizo AI research archive.">
+  <section class="search-wrap">
+    <div class="shell" style="max-width:900px">
+      <div class="eyebrow">Research archive</div>
+      <h1 style="font-size:clamp(2.8rem,7vw,5.8rem);line-height:.98;letter-spacing:-.055em;margin:18px 0 22px">Search the intelligence layer.</h1>
+      <p style="color:var(--muted);max-width:660px;margin-bottom:34px">Search published analysis by company, technology, policy, concept, or phrase.</p>
+      <label for="research-search" class="meta">Full-text search</label>
+      <input id="research-search" class="search-input" type="search" placeholder="Search research…" autocomplete="off" />
+      <div id="search-status" class="meta" style="margin-top:12px" aria-live="polite"></div>
+      <div id="search-results" class="search-results">
+        {posts.map((post) => (
+          <a class="search-result fallback-result" href={hrefFor(post)}>
+            <h2>{post.data.title}</h2>
+            <p>{post.data.description ?? formattedDate(post.data.date)}</p>
+          </a>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <script is:inline type="module">
+    const input = document.querySelector('#research-search');
+    const results = document.querySelector('#search-results');
+    const status = document.querySelector('#search-status');
+    let pagefind;
+
+    async function ensurePagefind() {
+      if (!pagefind) {
+        try {
+          pagefind = await import('/pagefind/pagefind.js');
+          await pagefind.init();
+        } catch (error) {
+          console.warn('Pagefind unavailable; using title fallback.', error);
+        }
+      }
+      return pagefind;
+    }
+
+    async function search(query) {
+      const term = query.trim();
+      if (!term) {
+        document.querySelectorAll('.fallback-result').forEach((el) => el.hidden = false);
+        status.textContent = '';
+        return;
+      }
+
+      const engine = await ensurePagefind();
+      if (!engine) {
+        let count = 0;
+        document.querySelectorAll('.fallback-result').forEach((el) => {
+          const match = el.textContent.toLowerCase().includes(term.toLowerCase());
+          el.hidden = !match;
+          if (match) count++;
+        });
+        status.textContent = `${count} matching articles`;
+        return;
+      }
+
+      const search = await engine.search(term);
+      const data = await Promise.all(search.results.slice(0, 20).map((result) => result.data()));
+      status.textContent = `${search.results.length} results`;
+      results.innerHTML = data.map((item) => `
+        <a class="search-result" href="${item.url}">
+          <h2>${item.meta?.title ?? item.url}</h2>
+          <p>${item.excerpt ?? ''}</p>
+        </a>`).join('');
+    }
+
+    let timer;
+    input?.addEventListener('input', (event) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => search(event.target.value), 120);
+    });
+
+    if (new URLSearchParams(window.location.search).get('focus') === 'search') input?.focus();
+  </script>
+</BaseLayout>
