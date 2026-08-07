@@ -44,7 +44,6 @@ const sourceDomains = [...sourcesByDomain.entries()];
           <span>{date}</span>
           <span>{minutes} min read</span>
           {sourceCount > 0 && <span>{sourceCount} sources</span>}
-          {post.data.generated_with_ai && <span>AI-assisted</span>}
         </div>
         <hr class="article-rule" />
       </div>
@@ -73,7 +72,7 @@ const sourceDomains = [...sourcesByDomain.entries()];
             <span>—</span>
           )}
         </div>
-        <div class="trust-item"><strong>Production</strong><span>{post.data.generated_with_ai ? 'AI-assisted' : 'Editorial'}</span></div>
+        <div class="trust-item"><strong>Format</strong><span>Research analysis</span></div>
       </div>
       {post.data.sources.length > 0 && (
         <div class="trust-sources">

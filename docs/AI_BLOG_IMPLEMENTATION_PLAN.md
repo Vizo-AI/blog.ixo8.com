@@ -323,7 +323,7 @@ Priority features:
 - source lists
 - source count
 - publication and update timestamps
-- AI-assisted disclosure
+- production disclosure
 - methodology page
 - AI use policy
 - corrections policy
