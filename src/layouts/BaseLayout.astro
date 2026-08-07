@@ -19,6 +19,9 @@ const pageTitle = title.includes('Vizo AI') ? title : `${title} — Vizo AI`;
 const canonicalUrl = new URL(canonical, Astro.site ?? Astro.url.origin);
 const currentPath = Astro.url.pathname;
 const isCurrent = (href: string) => href === '/' ? currentPath === href : currentPath.startsWith(href);
+const isHome = currentPath === '/';
+const isArticle = /^\/\d{4}\/\d{2}\/\d{2}\//.test(currentPath);
+const backFallback = isArticle ? '/explore/' : '/';
 ---
 <!doctype html>
 <html lang="en">
@@ -116,7 +119,20 @@ const isCurrent = (href: string) => href === '/' ? currentPath === href : curren
         </div>
       </div>
     </header>
-    <main id="content"><slot /></main>
+    <main id="content">
+      {!isHome && (
+        <div class:list={['page-back', 'shell', { 'page-back--narrow': isArticle || currentPath.startsWith('/explore/') }]}>
+          <a class="back-link" href={backFallback} data-back-link aria-label="Go back to the previous page">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m14 6-6 6 6 6"></path>
+              <path d="M8 12h11"></path>
+            </svg>
+            <span>Back</span>
+          </a>
+        </div>
+      )}
+      <slot />
+    </main>
     <footer class="site-footer">
       <div class="shell">Vizo AI · Research intelligence with source-aware editorial standards.</div>
     </footer>
@@ -203,6 +219,23 @@ const isCurrent = (href: string) => href === '/' ? currentPath === href : curren
 
       document.querySelectorAll('[data-mobile-nav] a').forEach((link) => {
         link.addEventListener('click', () => link.closest('details')?.removeAttribute('open'));
+      });
+
+      document.querySelector('[data-back-link]')?.addEventListener('click', (event) => {
+        if (!document.referrer || window.history.length <= 1) return;
+
+        try {
+          const previous = new URL(document.referrer);
+          const current = new URL(window.location.href);
+          const canReturn = previous.origin === current.origin && previous.pathname !== current.pathname;
+
+          if (canReturn) {
+            event.preventDefault();
+            window.history.back();
+          }
+        } catch {
+          // Keep the destination fallback when the referrer cannot be parsed.
+        }
       });
 
       document.addEventListener('keydown', (event) => {
