@@ -1,0 +1,62 @@
+---
+import { getCollection, render } from 'astro:content';
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+
+export async function getStaticPaths() {
+  const posts = await getCollection('posts');
+  return posts.flatMap((post) => {
+    const match = post.id.match(/^(\d{4})-(\d{2})-(\d{2})-(.+)$/);
+    if (!match) return [];
+    const [, year, month, day, slug] = match;
+    return [{ params: { year, month, day, slug }, props: { post } }];
+  });
+}
+
+const { post } = Astro.props;
+const { Content, headings } = await render(post);
+const description = post.data.description ?? 'Research analysis from Vizo AI.';
+const sourceCount = post.data.source_count ?? post.data.sources.length;
+const date = new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).format(post.data.date);
+const minutes = Math.max(1, Math.round((post.body?.split(/\s+/).length ?? 700) / 220));
+---
+<BaseLayout title={post.data.title} description={description} type="article">
+  <article>
+    <header class="article-hero">
+      <div class="article-hero-inner">
+        <div class="eyebrow">Research analysis</div>
+        <h1>{post.data.title}</h1>
+        {post.data.description && <p class="article-deck">{post.data.description}</p>}
+        <div class="article-meta">
+          <span>{date}</span>
+          <span>{minutes} min read</span>
+          {sourceCount > 0 && <span>{sourceCount} sources</span>}
+          {post.data.generated_with_ai && <span>AI-assisted</span>}
+        </div>
+        <hr class="article-rule" />
+      </div>
+    </header>
+
+    <div class="prose" data-pagefind-body>
+      <Content />
+    </div>
+
+    <aside class="trust-panel" aria-labelledby="trust-title">
+      <h2 id="trust-title">Research record</h2>
+      <div class="trust-grid">
+        <div class="trust-item"><strong>Published</strong><span>{date}</span></div>
+        <div class="trust-item"><strong>Sources recorded</strong><span>{sourceCount || 'Not yet structured'}</span></div>
+        <div class="trust-item"><strong>Production</strong><span>{post.data.generated_with_ai ? 'AI-assisted' : 'Editorial'}</span></div>
+      </div>
+      {post.data.sources.length > 0 && (
+        <div style="margin-top:24px">
+          <div class="eyebrow">Sources</div>
+          <ol>
+            {post.data.sources.map((source) => <li><a href={source} rel="noreferrer">{source}</a></li>)}
+          </ol>
+        </div>
+      )}
+    </aside>
+
+    {headings.length > 0 && <meta name="article:section-count" content={String(headings.length)} />}
+  </article>
+</BaseLayout>
