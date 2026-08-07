@@ -16,7 +16,12 @@ const { post } = Astro.props;
 const { Content, headings } = await render(post);
 const description = post.data.description ?? 'Research analysis from Vizo AI.';
 const sourceCount = post.data.source_count ?? post.data.sources.length;
-const date = new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).format(post.data.date);
+const date = new Intl.DateTimeFormat('en-US', {
+  month: 'long',
+  day: 'numeric',
+  year: 'numeric',
+  timeZone: 'UTC'
+}).format(post.data.date);
 const minutes = Math.max(1, Math.round((post.body?.split(/\s+/).length ?? 700) / 220));
 ---
 <BaseLayout title={post.data.title} description={description} type="article">

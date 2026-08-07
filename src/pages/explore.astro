@@ -1,14 +1,23 @@
 ---
-import { getCollection } from 'astro:content';
+import { getCollection, type CollectionEntry } from 'astro:content';
 import BaseLayout from '../layouts/BaseLayout.astro';
 
 const posts = (await getCollection('posts')).sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
 
-function hrefFor(post) {
+function hrefFor(post: CollectionEntry<'posts'>) {
   const match = post.id.match(/^(\d{4})-(\d{2})-(\d{2})-(.+)$/);
   if (!match) return '#';
   const [, year, month, day, slug] = match;
   return `/${year}/${month}/${day}/${slug}/`;
+}
+
+function formattedDate(date: Date) {
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    timeZone: 'UTC'
+  });
 }
 ---
 <BaseLayout title="Explore research" description="Search and explore the Vizo AI research archive.">
@@ -24,7 +33,7 @@ function hrefFor(post) {
         {posts.map((post) => (
           <a class="search-result fallback-result" href={hrefFor(post)}>
             <h2>{post.data.title}</h2>
-            <p>{post.data.description ?? post.data.date.toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' })}</p>
+            <p>{post.data.description ?? formattedDate(post.data.date)}</p>
           </a>
         ))}
       </div>
@@ -85,11 +94,6 @@ function hrefFor(post) {
       timer = setTimeout(() => search(event.target.value), 120);
     });
 
-    document.addEventListener('keydown', (event) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault();
-        input?.focus();
-      }
-    });
+    if (new URLSearchParams(window.location.search).get('focus') === 'search') input?.focus();
   </script>
 </BaseLayout>

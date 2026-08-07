@@ -1,20 +1,25 @@
 ---
-import { getCollection } from 'astro:content';
+import { getCollection, type CollectionEntry } from 'astro:content';
 import BaseLayout from '../layouts/BaseLayout.astro';
 
 const posts = (await getCollection('posts')).sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
 const featured = posts.find((post) => post.data.featured) ?? posts[0];
 const latest = posts.filter((post) => post.id !== featured?.id).slice(0, 8);
 
-function hrefFor(post) {
+function hrefFor(post: CollectionEntry<'posts'>) {
   const match = post.id.match(/^(\d{4})-(\d{2})-(\d{2})-(.+)$/);
   if (!match) return '/explore/';
   const [, year, month, day, slug] = match;
   return `/${year}/${month}/${day}/${slug}/`;
 }
 
-function formattedDate(date) {
-  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
+function formattedDate(date: Date) {
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC'
+  }).format(date);
 }
 ---
 <BaseLayout>

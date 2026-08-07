@@ -3,3 +3,11 @@ _site
 .jekyll-cache
 .jekyll-metadata
 vendor
+.DS_Store
+
+# Astro / Node
+.astro
+dist
+node_modules
+output/playwright
+.playwright-cli
