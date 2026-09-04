@@ -6,11 +6,12 @@
  *
  * Required Apps Script properties:
  *   AI_RESEARCH_EDITOR_ROOT_FOLDER_ID
- *   BLOG_READY_FOLDER_ID
+ *   GITHUB_DISPATCH_TOKEN
  *
  * Optional Apps Script property:
  *   BLOG_SOURCE_DOCUMENT_NAME (default: Medium)
  *   BLOG_RECOVERY_DATE (YYYY-MM-DD; used only by exportRecoveryArticle)
+ *   GITHUB_REPOSITORY (default: Vizo-AI/blog.ixo8.com)
  *
  * Folder IDs and credentials must not be committed to this repository.
  */
@@ -92,6 +93,45 @@ function exportGoogleDocAsMarkdown(file) {
   return response.getContentText('UTF-8');
 }
 
+function dispatchArticleToGitHub(outputName, markdown, source) {
+  const repository = optionalProperty('GITHUB_REPOSITORY', 'Vizo-AI/blog.ixo8.com');
+  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) {
+    throw new Error(`Invalid GITHUB_REPOSITORY value: ${repository}`);
+  }
+
+  const requestBody = JSON.stringify({
+    event_type: 'drive_article_ready',
+    client_payload: {
+      filename: outputName,
+      markdown_base64: Utilities.base64Encode(markdown, Utilities.Charset.UTF_8),
+      source_id: source.getId(),
+      source_updated_at: source.getLastUpdated().toISOString()
+    }
+  });
+
+  // GitHub accepts repository-dispatch bodies below 64 KB. Leave headroom for
+  // JSON encoding and future metadata fields.
+  if (requestBody.length > 60000) {
+    throw new Error(`${outputName} is too large for the GitHub dispatch handoff.`);
+  }
+
+  const response = UrlFetchApp.fetch(`https://api.github.com/repos/${repository}/dispatches`, {
+    method: 'post',
+    contentType: 'application/json',
+    headers: {
+      Accept: 'application/vnd.github+json',
+      Authorization: `Bearer ${requiredProperty('GITHUB_DISPATCH_TOKEN')}`,
+      'X-GitHub-Api-Version': '2022-11-28'
+    },
+    payload: requestBody,
+    muteHttpExceptions: true
+  });
+
+  if (response.getResponseCode() !== 204) {
+    throw new Error(`GitHub dispatch failed with HTTP ${response.getResponseCode()}: ${response.getContentText()}`);
+  }
+}
+
 function cleanMarkdownTitle(value) {
   return value
     .replace(/^#+\s*/, '')
@@ -119,7 +159,6 @@ function exportArticleForCalendarDate(calendarDate) {
   }
 
   const root = DriveApp.getFolderById(requiredProperty('AI_RESEARCH_EDITOR_ROOT_FOLDER_ID'));
-  const ready = DriveApp.getFolderById(requiredProperty('BLOG_READY_FOLDER_ID'));
   const sourceName = optionalProperty('BLOG_SOURCE_DOCUMENT_NAME', 'Medium');
   const yearMonth = calendarDate.slice(0, 7);
   const monthFolder = exactlyOneFolder(root, yearMonth);
@@ -158,14 +197,10 @@ function exportArticleForCalendarDate(calendarDate) {
   if (!slug) throw new Error(`Could not create a slug from article title: ${articleTitle}.`);
 
   const outputName = `${calendarDate}-${slug}.md`;
-  if (ready.getFilesByName(outputName).hasNext()) {
-    throw new Error(`${outputName} already exists in the Blog Ready Markdown folder.`);
-  }
-
   markdown = `<!-- vizo-drive-file-id: ${source.getId()} -->\n\n${markdown}\n`;
-  ready.createFile(outputName, markdown, 'text/markdown');
+  dispatchArticleToGitHub(outputName, markdown, source);
   scriptProperties.setProperty(identity, new Date().toISOString());
-  console.log(`Exported ${yearMonth}/${calendarDate}/${sourceName} as ${outputName}.`);
+  console.log(`Dispatched ${yearMonth}/${calendarDate}/${sourceName} as ${outputName}.`);
 }
 
 function exportArticleForDate(date) {

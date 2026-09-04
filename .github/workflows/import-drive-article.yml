@@ -1,0 +1,54 @@
+name: Import Google Drive article
+
+on:
+  repository_dispatch:
+    types: [drive_article_ready]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: drive-article-${{ github.event.client_payload.source_id }}
+  cancel-in-progress: false
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.BLOG_PUBLISHER_GITHUB_TOKEN }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prepare dispatched article
+        env:
+          BLOG_ARTICLE_INBOX: ${{ runner.temp }}/blog-ready
+          BLOG_DISPATCH_PAYLOAD: ${{ toJson(github.event.client_payload) }}
+        run: node scripts/prepare-dispatch-article.mjs
+
+      - name: Configure publication identity
+        run: |
+          git config user.name "Vizo Blog Publisher"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Format, validate, and open pull request
+        env:
+          GH_TOKEN: ${{ secrets.BLOG_PUBLISHER_GITHUB_TOKEN }}
+        run: |
+          npm run articles:import -- \
+            --inbox "${{ runner.temp }}/blog-ready" \
+            --processed "${{ runner.temp }}/blog-imported" \
+            --failed "${{ runner.temp }}/blog-failed" \
+            --min-age-seconds 0 \
+            --publish pr

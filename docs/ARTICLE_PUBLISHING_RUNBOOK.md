@@ -2,30 +2,30 @@
 
 ## Purpose
 
-This runbook describes how to operate the article pipeline for
-`https://ai-blog.ixo8.com/`.
+This runbook operates the automated publishing path for
+`https://ai-blog.ixo8.com/` without Google Drive for desktop or an always-on Mac.
 
-The scheduled research process already creates this hierarchy in My Drive:
+The research workflow creates this Drive hierarchy:
 
 ```text
-AI Research Editor/
-└── YYYY-MM/
-    └── YYYY-MM-DD/
-        ├── Canonical Article
-        ├── Executive Brief
-        ├── LinkedIn Concise
-        ├── LinkedIn Full
-        ├── Medium                 <- only this Google Doc is published
-        ├── Short Summary
-        ├── Sources + QA
-        └── Teaser
+My Drive/
+└── AI Research Editor/
+    └── YYYY-MM/
+        └── YYYY-MM-DD/
+            ├── Canonical Article
+            ├── Executive Brief
+            ├── LinkedIn Concise
+            ├── LinkedIn Full
+            ├── Medium                 <- only this native Google Doc is used
+            ├── Short Summary
+            ├── Sources + QA
+            └── Teaser
 ```
 
-The automation leaves that hierarchy and every source document unchanged. It
-selects the Google Doc whose name is exactly `Medium`, exports it as Markdown,
-formats and validates it locally, and opens a pull request. Publication remains
-review-gated: the article does not reach the live site until the pull request is
-reviewed and merged.
+The source may appear as `Medium.gdoc` on a computer. A `.gdoc` file is only a
+local pointer to a native Google Doc; it does not contain the article body. The
+automation does not download that pointer. Apps Script opens the native Google
+Doc in Drive and exports its actual content to Markdown in memory.
 
 ## Architecture
 
@@ -35,75 +35,150 @@ Scheduled research process (Monday, Wednesday, Friday at 08:00 Eastern)
         v
 My Drive/AI Research Editor/YYYY-MM/YYYY-MM-DD/Medium
         |
-        | Apps Script checks during the 08:00-08:40 Eastern window
+        | Apps Script finds the native Google Doc and exports text/markdown
         v
-My Drive/AI Research Editor/Blog Pipeline/Blog Ready Markdown
+GitHub repository_dispatch event carrying the Markdown
         |
-        | Google Drive for desktop
         v
-Mirrored local folder on this Mac
+GitHub Actions creates a temporary Markdown inbox
         |
-        | launchd runs at 08:05, :10, :15, :20, :25, :30, and :35
-        | on Monday, Wednesday, and Friday
         v
-Local importer -> format -> tests/check/build -> Git branch -> pull request
+Existing importer formats and validates the article
+        |
+        v
+automation/articles-* branch and review pull request
         |
         | human review and merge
         v
-GitHub Actions -> GitHub Pages -> https://ai-blog.ixo8.com/
+GitHub Pages deployment
 ```
 
-The repeated checks cover the normal 08:05-08:10 delivery time without running
-the local job continuously. Both exporter and importer are idempotent, so later
-checks harmlessly report that nothing new is waiting.
+There is no `Blog Ready Markdown` Drive folder, Drive desktop configuration,
+local `launchd` job, or `gdown` dependency in this design.
 
-## Why this pipeline does not use gdown
+## What each identifier means
 
-`gdown` is useful for downloading public or link-shared Drive files, but it is a
-poor fit for this private, unattended Google Docs workflow:
+Only one Google folder ID is required:
 
-- private files generally require public link sharing or exported browser
-  cookies;
-- Google Docs are exported to Office formats by default rather than Markdown;
-- the downloader does not express the dated folder traversal and exact
-  `Medium`-only selection needed here;
-- it would add Python and cookie/credential handling to a pipeline that already
-  has an authenticated Google execution environment.
+```text
+AI_RESEARCH_EDITOR_ROOT_FOLDER_ID
+```
 
-The Apps Script exporter uses the current Google user's OAuth grant and the
-official Drive export endpoint for `text/markdown`. No Google credential, API
-key, browser cookie, or folder ID is stored in this repository.
+This is the permanent ID of the existing `AI Research Editor` parent folder.
+The ID does not change when new `YYYY-MM` and `YYYY-MM-DD` children are created.
+Apps Script calculates today's names and traverses them automatically:
+
+```text
+AI Research Editor        <- permanent ID supplied once
+└── 2026-09               <- found by name
+    └── 2026-09-04        <- found by name
+        └── Medium        <- exact native Google Doc found by name and MIME type
+```
+
+To find the permanent folder ID, open `AI Research Editor` in the Drive browser.
+The folder ID is the value after `/folders/` in the URL. Treat it as private
+configuration and enter it only in Apps Script Project Settings.
+
+`BLOG_READY_FOLDER_ID` is no longer used.
 
 ## Repository components
 
 | Component | Responsibility |
 | --- | --- |
-| `ops/google-apps-script/export-blog-articles.gs` | Locate the dated `Medium` Doc and export it as Markdown |
-| `ops/com.vizo.blog-importer.plist.example` | Run the local importer only during the M/W/F morning window |
-| `scripts/import-drive-articles.mjs` | Normalize metadata, validate the site, and create a pull request |
-| `scripts/import-drive-articles.test.mjs` | Test importer formatting and safety behavior |
-| `.blog-publisher/state.json` | Record imported Drive IDs or content hashes to prevent duplicates |
-| `.github/workflows/deploy.yml` | Validate pull requests and deploy merged changes to GitHub Pages |
+| `ops/google-apps-script/export-blog-articles.gs` | Find, export, and dispatch the dated `Medium` Doc |
+| `.github/workflows/import-drive-article.yml` | Receive the article and run the cloud importer |
+| `scripts/prepare-dispatch-article.mjs` | Validate and decode the external dispatch payload |
+| `scripts/import-drive-articles.mjs` | Create frontmatter, validate the site, and open the PR |
+| `scripts/*.test.mjs` | Test export scheduling, payload safety, and formatting |
+| `.github/workflows/deploy.yml` | Validate pull requests and deploy merged posts |
 
-The `.blog-publisher/` state/log directory and `.trace-mcp/` are ignored by Git.
+## Security model
+
+The bridge requires one fine-grained GitHub personal access token. Create it for
+a dedicated publishing identity if one is available. Limit it to the single
+`Vizo-AI/blog.ixo8.com` repository with:
+
+- **Contents: Read and write**;
+- **Pull requests: Read and write**.
+
+Use an expiration date and rotate it before expiry. Never paste the token into
+the repository, article, issue, pull request, log, chat, or support message.
+
+The same token is entered manually in two protected locations:
+
+1. GitHub repository Actions secret named `BLOG_PUBLISHER_GITHUB_TOKEN`;
+2. Apps Script Script Property named `GITHUB_DISPATCH_TOKEN`.
+
+The first authorizes the temporary GitHub runner to push the article branch and
+open its PR. The second authorizes Apps Script to trigger only the repository's
+intake workflow. Keep the Apps Script project private and restrict its editors.
+
+For a larger production system, replace the personal token with a narrowly
+scoped GitHub App installation token. The fine-grained token is the simpler
+operator-managed starting point.
+
+## One-time GitHub setup
+
+1. Create the fine-grained token described above without placing it in a local
+   file.
+2. Open the repository on GitHub.
+3. Go to **Settings > Secrets and variables > Actions**.
+4. Create a repository secret named:
+
+   ```text
+   BLOG_PUBLISHER_GITHUB_TOKEN
+   ```
+
+5. Paste the token value into GitHub's secret form and save it.
+6. Confirm that Actions are enabled for the repository.
+
+Do not add this token to a Codespace variable or ordinary Actions variable. It
+must be a secret.
+
+## One-time Apps Script setup
+
+1. Open `https://script.google.com/` and create a standalone project named
+   `Vizo Blog Exporter`.
+2. Copy the current contents of
+   `ops/google-apps-script/export-blog-articles.gs` into the project.
+3. Set the project time zone to `America/New_York`.
+4. Open **Project Settings > Script Properties**.
+5. Add:
+
+   ```text
+   AI_RESEARCH_EDITOR_ROOT_FOLDER_ID=<permanent AI Research Editor folder ID>
+   GITHUB_DISPATCH_TOKEN=<fine-grained GitHub token>
+   ```
+
+6. The following properties are optional:
+
+   ```text
+   BLOG_SOURCE_DOCUMENT_NAME=Medium
+   GITHUB_REPOSITORY=Vizo-AI/blog.ixo8.com
+   ```
+
+   Both shown values are already the defaults.
+
+7. Select `exportTodaysArticleNow` and run it once.
+8. Review and grant the requested Google Drive and external-request permissions.
+9. Open the repository's **Actions** page. Confirm that an
+   **Import Google Drive article** run appeared.
+10. Confirm that the run created an `automation/articles-*` pull request.
+11. Review but do not merge the first PR until the verification checklist below
+    is complete.
+12. Return to Apps Script and run `installPublishingWindowTrigger` once.
+
+The installed Apps Script trigger wakes every five minutes because Apps Script
+does not offer a compact M/W/F 30-minute recurrence. The function returns
+immediately without a Drive or GitHub request outside Monday, Wednesday, and
+Friday from 08:00 through 08:40 Eastern.
 
 ## Publishing contract
 
-Astro reads Markdown from `_posts`. The final filename is:
+The `Medium` Doc must begin with the real article title, preferably formatted as
+Heading 1. The generic filename `Medium` is never used as the article title.
 
-```text
-YYYY-MM-DD-lowercase-url-slug.md
-```
-
-That becomes this URL shape:
-
-```text
-https://ai-blog.ixo8.com/YYYY/MM/DD/lowercase-url-slug/
-```
-
-The `Medium` Google Doc must begin with the real article title, preferably
-formatted as Heading 1. The generic Google Doc name `Medium` is never used as
-the article title. A recommended source document is:
+Recommended document structure:
 
 ```markdown
 # Article title
@@ -120,7 +195,19 @@ Article content.
 - https://another-source.example/document
 ```
 
-The importer emits frontmatter accepted by `src/content.config.ts`:
+The final `_posts` filename is:
+
+```text
+YYYY-MM-DD-lowercase-url-slug.md
+```
+
+That becomes:
+
+```text
+https://ai-blog.ixo8.com/YYYY/MM/DD/lowercase-url-slug/
+```
+
+The importer creates frontmatter like:
 
 ```yaml
 ---
@@ -138,302 +225,48 @@ featured: false
 ---
 ```
 
-It infers:
-
-- `title` from frontmatter, then the first H1, then the source filename;
-- `date` from frontmatter, then the `YYYY-MM-DD-` filename prefix, then the
-  current date in `America/New_York`;
-- `description` from frontmatter or the first prose paragraph;
-- `sources` from frontmatter plus HTTP/HTTPS URLs in the article;
-- `authors` as `Vizo AI` unless provided;
-- `generated_with_ai` as `true` unless explicitly set to `false`;
-- `featured` as `false` unless explicitly set to `true`.
-
-The first H1 is removed from the body because the article layout renders the
-frontmatter title as the page H1.
-
-## One-time Google Drive setup
-
-### 1. Create pipeline folders
-
-Keep the existing dated folders. Add these operational folders, preferably
-under `AI Research Editor/Blog Pipeline/`:
-
-```text
-AI Research Editor/
-├── YYYY-MM/
-│   └── YYYY-MM-DD/
-│       └── Medium
-└── Blog Pipeline/
-    ├── Blog Ready Markdown/
-    ├── Blog Imported Markdown/
-    └── Blog Failed Markdown/
-```
-
-Only `Blog Ready Markdown` must be visible to Apps Script. The other two folders
-are local destinations used by the importer after Drive for desktop syncs them.
-
-Keep folder IDs private. A folder ID is the final identifier in its Drive URL;
-do not put it in this repository, a pull request, a log, or a support message.
-
-### 2. Install the Apps Script exporter
-
-1. Open `https://script.google.com/` and create a standalone project named
-   `Vizo Blog Exporter`.
-2. Copy `ops/google-apps-script/export-blog-articles.gs` into the project.
-3. Set the Apps Script project time zone to `America/New_York`.
-4. Open **Project Settings > Script Properties**.
-5. Add these two required properties using the private folder IDs:
-
-   ```text
-   AI_RESEARCH_EDITOR_ROOT_FOLDER_ID
-   BLOG_READY_FOLDER_ID
-   ```
-
-   `AI_RESEARCH_EDITOR_ROOT_FOLDER_ID` is the ID of the existing
-   `AI Research Editor` folder. `BLOG_READY_FOLDER_ID` is the ID of
-   `Blog Ready Markdown`.
-
-6. Optionally add this property if the source Doc is ever renamed:
-
-   ```text
-   BLOG_SOURCE_DOCUMENT_NAME=Medium
-   ```
-
-   The default is already `Medium`; exact spelling and capitalization are used.
-
-7. Select `exportTodaysArticleNow` in the Apps Script editor and run it once.
-8. Review and grant only the requested Google Drive and external-request
-   permissions.
-9. Confirm that one `.md` file appears in `Blog Ready Markdown`. Confirm that
-   the original `Medium` Doc and all seven sibling documents remain unchanged.
-10. Select and run `installPublishingWindowTrigger` once.
-
-The installed Apps Script trigger wakes every five minutes because Apps Script
-does not support a compact M/W/F 30-minute recurrence. The handler returns
-immediately and performs no Drive lookup outside Monday, Wednesday, and Friday
-from 08:00 through 08:40 Eastern. This is independent of the local `launchd`
-schedule.
-
-### 3. Configure Drive for desktop
-
-Use **Mirror files** for the most predictable unattended behavior. If streaming
-is required, mark `Blog Pipeline` as **Available offline** and keep Drive for
-desktop running.
-
-Record the absolute Finder paths for:
-
-- `Blog Ready Markdown`;
-- `Blog Imported Markdown`;
-- `Blog Failed Markdown`.
-
-Do not commit these user-specific paths.
-
-## One-time local setup
-
-### 1. Verify tools
-
-From the repository root:
-
-```bash
-node --version
-command -v node
-command -v npm
-command -v gh
-npm ci
-gh auth status
-git status --short --branch
-```
-
-Requirements:
-
-- Node.js 22.12 or newer;
-- Google Drive for desktop running;
-- GitHub CLI authenticated through the existing credential store;
-- the repository on `main` with a clean working tree;
-- local `main` able to fast-forward from `origin/main`.
-
-Never paste a GitHub token into Apps Script, the launchd property list, the
-repository, or a log file.
-
-### 2. Test a dry run
-
-Replace the examples with the absolute mirrored Drive paths:
-
-```bash
-npm run articles:import -- \
-  --inbox "/absolute/path/to/Blog Ready Markdown" \
-  --processed "/absolute/path/to/Blog Imported Markdown" \
-  --failed "/absolute/path/to/Blog Failed Markdown" \
-  --min-age-seconds 0 \
-  --dry-run
-```
-
-A dry run reads and formats candidate files but does not write posts, change
-Git, move Drive files, or update state.
-
-### 3. Test a local import without publishing
-
-```bash
-npm run articles:import -- \
-  --inbox "/absolute/path/to/Blog Ready Markdown" \
-  --processed "/absolute/path/to/Blog Imported Markdown" \
-  --failed "/absolute/path/to/Blog Failed Markdown"
-```
-
-This mode writes the article to `_posts`, runs `npm run check` and
-`npm run build`, and moves a successful source file to
-`Blog Imported Markdown`. Review and commit the post manually during testing.
-
-### 4. Test pull-request publishing
-
-Enable this only after the dry run and local import are proven:
-
-```bash
-npm run articles:import -- \
-  --inbox "/absolute/path/to/Blog Ready Markdown" \
-  --processed "/absolute/path/to/Blog Imported Markdown" \
-  --failed "/absolute/path/to/Blog Failed Markdown" \
-  --publish pr
-```
-
-In pull-request mode the importer:
-
-1. requires a clean `main` branch;
-2. runs `git pull --ff-only origin main`;
-3. formats the article into `_posts`;
-4. runs importer tests, Astro checks, the site build, route parity, and internal
-   link validation;
-5. creates an `automation/articles-<timestamp>` branch;
-6. commits only generated `_posts` files;
-7. pushes the branch and opens a pull request with `gh`;
-8. switches the local checkout back to `main`;
-9. moves the source Markdown to `Blog Imported Markdown`;
-10. records the import in `.blog-publisher/state.json`.
-
-It never pushes directly to `main` and never overwrites an existing article
-with different content.
-
-## Install the macOS schedule
-
-This is a one-time machine-level action. Perform it only after all paths and the
-pull-request test have been verified.
-
-1. Create the repository-local state/log directory:
-
-   ```bash
-   mkdir -p .blog-publisher
-   ```
-
-2. Copy `ops/com.vizo.blog-importer.plist.example` to:
-
-   ```text
-   ~/Library/LaunchAgents/com.vizo.blog-importer.plist
-   ```
-
-3. Replace every placeholder in the copied file:
-
-   ```text
-   REPOSITORY_PATH
-   DRIVE_READY_MARKDOWN_PATH
-   DRIVE_IMPORTED_MARKDOWN_PATH
-   DRIVE_FAILED_MARKDOWN_PATH
-   TOOL_SHIMS_DIRECTORY
-   ```
-
-   Use absolute paths; do not use `~` in the property list. Set
-   `TOOL_SHIMS_DIRECTORY` to the directory printed by:
-
-   ```bash
-   dirname "$(command -v node)"
-   ```
-
-   The importer also needs `npm`, `git`, and `gh` on the configured `PATH`.
-
-4. Validate the installed file:
-
-   ```bash
-   plutil -lint ~/Library/LaunchAgents/com.vizo.blog-importer.plist
-   ```
-
-5. Load it:
-
-   ```bash
-   launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/com.vizo.blog-importer.plist
-   ```
-
-6. Run it immediately for first verification:
-
-   ```bash
-   launchctl kickstart -k "gui/$(id -u)/com.vizo.blog-importer"
-   ```
-
-7. Inspect the logs:
-
-   ```bash
-   tail -n 100 .blog-publisher/importer.log
-   tail -n 100 .blog-publisher/importer.error.log
-   ```
-
-The checked-in schedule runs at 08:05, 08:10, 08:15, 08:20, 08:25, 08:30,
-and 08:35 local time on Monday, Wednesday, and Friday. The Mac should use the
-`America/New_York` time zone. If it uses another local time zone, adjust the
-hours in the installed property list.
-
-The Mac must be powered on, the user logged in, Drive for desktop running, and
-the network available. macOS normally coalesces a missed calendar event after
-wake, but it cannot import a file that Drive has not synchronized.
-
-To unload the schedule:
-
-```bash
-launchctl bootout "gui/$(id -u)" ~/Library/LaunchAgents/com.vizo.blog-importer.plist
-```
-
-After changing the checked-in template, unload the installed job, update the
-installed copy, validate it, and bootstrap it again.
+It derives the title, date, description, sources, and slug, then removes the
+duplicate body H1 because the site layout renders the frontmatter title.
 
 ## Normal Monday/Wednesday/Friday operation
 
-1. At 08:00 Eastern, the research workflow starts creating the dated folder and
-   its documents.
-2. Apps Script looks only for
-   `AI Research Editor/YYYY-MM/YYYY-MM-DD/Medium`.
-3. When `Medium` is available, Apps Script reads the real title from the
-   document and creates one dated Markdown file in `Blog Ready Markdown`.
-4. Drive for desktop synchronizes the Markdown to the Mac.
-5. The next scheduled local run imports and validates it.
-6. Open the generated GitHub pull request.
-7. Review the title, date, URL slug, opening description, headings, sources,
-   article body, and Actions checks.
-8. Adjust optional `topics`, `tags`, `featured`, or `generated_with_ai`
-   metadata in the pull request if needed.
-9. Merge the pull request when editorial review is complete.
-10. Confirm the production GitHub Actions run succeeds, then open the article
-    URL and its research record.
+1. At 08:00 Eastern, the research workflow begins creating the dated documents.
+2. Apps Script checks only
+   `AI Research Editor/YYYY-MM/YYYY-MM-DD/Medium` during the morning window.
+3. If the date folder or `Medium` is not ready, it records a waiting message and
+   checks again later.
+4. Once found, Apps Script exports the native Doc as Markdown and dispatches it
+   to GitHub. All Drive files remain unchanged.
+5. GitHub Actions validates the payload, runs importer tests and the complete
+   site build, creates an article branch, and opens a pull request.
+6. Review the pull request and its checks.
+7. Update optional `topics`, `tags`, `featured`, or `generated_with_ai` metadata
+   in the PR if needed.
+8. Merge only after editorial review.
+9. Confirm the **Deploy to GitHub Pages** workflow succeeds.
+10. Open the production article URL and research record.
 
-Do not merge if source metadata or article claims still need editorial review.
+## Required pull-request review checklist
+
+- [ ] Headline and description are accurate.
+- [ ] Publication date matches the dated Drive folder.
+- [ ] URL slug is lowercase and readable.
+- [ ] No duplicate H1 appears in the article body.
+- [ ] Section headings use Heading 2 or deeper.
+- [ ] Primary sources are present and open successfully.
+- [ ] `generated_with_ai` is accurate.
+- [ ] `featured` is intentional.
+- [ ] GitHub checks pass.
+- [ ] No unrelated files are included.
 
 ## Manual and recovery operations
 
-### Import an already-created Markdown file
+### Process today's article immediately
 
-Place a UTF-8 `.md` file in `Blog Ready Markdown`. The importer accepts raw
-Markdown or supported frontmatter and ignores dotfiles and non-Markdown files.
-Files modified within the last 30 seconds are skipped to avoid importing a
-partially synchronized file.
+Run `exportTodaysArticleNow` in Apps Script. The publishing-day/time window is
+ignored, but source selection and duplicate protection remain enabled.
 
-### Re-export today's Medium Doc
-
-Run `exportTodaysArticleNow` in Apps Script. If that exact revision was already
-exported, the execution reports `Already exported` and creates no duplicate.
-
-If the `Medium` Doc changed after the first export, Apps Script detects the new
-Drive modification timestamp. Remove or archive the earlier Markdown from
-`Blog Ready Markdown` before running the function again because the output
-filename intentionally remains stable.
-
-### Recover a past date
+### Process a past date
 
 1. Add this temporary Apps Script property:
 
@@ -441,136 +274,96 @@ filename intentionally remains stable.
    BLOG_RECOVERY_DATE=YYYY-MM-DD
    ```
 
-2. Run `exportRecoveryArticle` manually.
-3. Confirm the correct Markdown appeared in `Blog Ready Markdown`.
-4. Delete the `BLOG_RECOVERY_DATE` property so it cannot be reused by mistake.
+2. Run `exportRecoveryArticle`.
+3. Confirm the GitHub intake run appeared.
+4. Delete `BLOG_RECOVERY_DATE` to prevent accidental reuse.
 
-The recovery function still selects only the exact `Medium` Google Doc.
+### Retry a failed GitHub intake
 
-### Run a local diagnostic
+If Apps Script successfully dispatched the article but the GitHub job failed,
+open the failed **Import Google Drive article** run and choose **Re-run jobs**.
+The original validated event payload is reused. Do not change or clear Apps
+Script's duplicate state merely to retry a GitHub job.
+
+### Import a local Markdown file manually
+
+The local importer remains available for exceptional manual use:
 
 ```bash
-git status --short --branch
-npm run test:articles
-npm run check
-npm run build
 npm run articles:import -- \
-  --inbox "/absolute/path/to/Blog Ready Markdown" \
-  --dry-run \
-  --min-age-seconds 0
+  --inbox "/absolute/path/to/a-temporary-markdown-folder" \
+  --min-age-seconds 0 \
+  --dry-run
 ```
 
-## Required pull-request review checklist
-
-- [ ] Headline and description are accurate.
-- [ ] Filename slug is lowercase and readable.
-- [ ] Publication date matches the dated Drive folder.
-- [ ] No duplicate H1 appears in the article body.
-- [ ] Section headings use `##` or deeper Markdown headings.
-- [ ] Primary sources are present and open successfully.
-- [ ] `generated_with_ai` is accurate.
-- [ ] `featured` is intentional.
-- [ ] GitHub Actions checks pass.
-- [ ] No unrelated files are included in the pull request.
+Remove `--dry-run` only after reviewing the planned destination.
 
 ## Monitoring
 
 Check these surfaces in order:
 
-1. Apps Script **Executions**: confirms scheduled checks, export, or a useful
-   waiting/error message.
-2. `Blog Ready Markdown`: confirms Markdown creation and Drive synchronization.
-3. `.blog-publisher/importer.log`: confirms import or a harmless empty scan.
-4. `.blog-publisher/importer.error.log`: records validation, Git, or GitHub
-   failures.
-5. `Blog Failed Markdown`: contains rejected inputs and adjacent `.error.txt`
-   explanations.
-6. GitHub pull requests and Actions: confirms validation and deployment.
+1. Apps Script **Executions** for folder lookup, export, and dispatch status.
+2. GitHub Actions **Import Google Drive article** for intake and validation.
+3. The generated pull request for the formatted article and checks.
+4. GitHub Actions **Deploy to GitHub Pages** after merge.
+5. The live article and research record.
 
-Normal idle messages include:
+Normal Apps Script messages include:
 
 ```text
 Waiting: Medium is not available in YYYY-MM/YYYY-MM-DD.
 Already exported: YYYY-MM/YYYY-MM-DD/Medium.
-No Markdown articles are waiting in the inbox.
+Dispatched YYYY-MM/YYYY-MM-DD/Medium as YYYY-MM-DD-article-slug.md.
 ```
 
-## Failure and recovery table
+## Failure and recovery
 
 | Symptom | Likely cause | Recovery |
 | --- | --- | --- |
-| No dated folder found | Research workflow is late or date/time-zone is wrong | Inspect the research schedule and Apps Script project time zone; run today's export manually when ready |
-| `Medium` is not found but sibling Docs exist | The document is late, renamed, or not a native Google Doc | Wait for completion; restore the exact name `Medium`, or deliberately set `BLOG_SOURCE_DOCUMENT_NAME` |
-| More than one matching folder or Doc | Duplicate names make source selection ambiguous | Remove or rename the duplicate; the exporter intentionally refuses to guess |
-| Export says the title is missing | The Doc begins with `Medium`, an empty line, or non-title content | Put the real article title first, preferably as Heading 1, then rerun |
-| Markdown remains in `Blog Ready Markdown` | Drive is not synced, launchd is unloaded, or the Mac is offline | Verify Drive for desktop, run `launchctl kickstart`, and inspect importer logs |
-| Source moves to `Blog Failed Markdown` | Invalid content/date, slug collision, or site validation failure | Read its `.error.txt`, correct the source, remove the error note, and return the corrected `.md` to `Blog Ready Markdown` |
-| Importer reports a dirty tree | Local repository work is uncommitted | Review `git status`; commit or otherwise resolve intentional work before retrying |
-| `git pull --ff-only` fails | Local and remote `main` diverged | Stop automation and reconcile manually; do not force-push |
-| Importer names a recovery branch | Commit, push, or PR creation failed after branch creation | Inspect that branch and `git status`; finish or repair that exact branch before retrying |
-| Pull-request checks fail | Frontmatter, route, link, or Astro build issue | Read the failed Actions step, fix the PR branch, and rerun checks |
-| Pull request exists but article is not live | The PR is unmerged or deployment failed | Merge only after review, then inspect the Deploy to GitHub Pages workflow |
-| The same source appears again | State was removed or the Doc changed after export | Compare the Drive file ID/content and `_posts`; the importer refuses a conflicting overwrite |
+| No dated folder found | Research generation is late or the Apps Script time zone is wrong | Inspect the research schedule and project time zone; run today's export manually when ready |
+| `Medium` not found but siblings exist | It is late, renamed, or not a native Google Doc | Wait, restore the exact name, or deliberately change `BLOG_SOURCE_DOCUMENT_NAME` |
+| More than one matching folder or Doc | Duplicate names make selection ambiguous | Rename the duplicate; the exporter intentionally refuses to guess |
+| Title error | The first content line is empty, generic, or not the real title | Put the real article title first, preferably as Heading 1 |
+| GitHub dispatch returns 401 or 403 | Token missing, expired, or incorrectly scoped | Rotate the fine-grained token in both protected locations; never expose its value |
+| GitHub dispatch returns 404 | Repository name is wrong or token lacks access | Verify `GITHUB_REPOSITORY` and the token's selected repository |
+| Dispatch handoff is too large | Markdown exceeds the repository-dispatch payload limit | Shorten the article or implement a private object-storage handoff |
+| Intake says secret is missing or checkout fails | GitHub Actions secret is absent or expired | Replace `BLOG_PUBLISHER_GITHUB_TOKEN` in repository Actions secrets |
+| Importer rejects the article | Content/date is invalid or the target post already exists | Read the failed Actions step and correct the source or PR deliberately |
+| Branch is pushed but no PR appears | Token lacks Pull requests write permission | Correct the token scope and rerun the failed GitHub job |
+| PR exists but article is not live | PR is unmerged or deployment failed | Merge only after review, then inspect the Pages deployment |
 
-## Recover or remove a published article
-
-Deleted posts remain recoverable from Git history. Locate a prior version without
-changing the working tree:
-
-```bash
-git log --all -- _posts/path-to-article.md
-git show COMMIT:_posts/path-to-article.md
-```
-
-To remove or roll back a published article, use a normal reviewed commit or a
-Git revert and let the standard deployment run. Never force-push `main`.
-
-## Security and access rules
-
-- Never commit Google folder IDs, OAuth data, browser cookies, GitHub tokens,
-  private keys, or `.env` files.
-- Do not place secrets in article content, frontmatter, launchd arguments, or
-  logs.
-- Restrict `AI Research Editor` and `Blog Pipeline` to the smallest practical
-  editor group.
-- Treat the existence of the dated `Medium` Doc as authorization to prepare a
-  publication pull request, not authorization to bypass editorial review.
-- Keep pull-request mode enabled for unattended operation.
-- Use the existing local GitHub credential store; do not embed credentials in
-  automation files.
-- Review changes to the importer, Apps Script, launchd template, and deploy
-  workflow like production code.
-
-## Updating the automation
-
-After changing importer or schedule code, run:
+## Local verification after repository changes
 
 ```bash
 npm run test:articles
 npm run check
 npm run build
-plutil -lint ops/com.vizo.blog-importer.plist.example
 node --check < ops/google-apps-script/export-blog-articles.gs
 ```
 
-After changing Apps Script code, paste the reviewed version into the Apps Script
-project and run `exportTodaysArticleNow` manually before relying on the scheduled
-trigger. After changing the launchd template, reinstall and reload the local
-copy as described above.
+After changing Apps Script, copy the reviewed version into the Apps Script
+project and run `exportTodaysArticleNow` manually. After changing the GitHub
+intake workflow, use a reviewed test Doc and confirm the entire PR flow before
+relying on the schedule.
 
-## Availability limitation
+## Security and operational rules
 
-The local half of this pipeline depends on the Mac. If publishing must continue
-while it is powered off, move the importer to an always-on service or a GitHub
-Actions workflow with narrowly scoped Google authentication. Preserve the same
-formatting, validation, idempotency, pull-request, and editorial-review gates.
-Avoid long-lived service-account keys or broad personal-access tokens.
+- Never commit or print Drive folder IDs, OAuth data, browser cookies, GitHub
+  tokens, private keys, passwords, or `.env` values.
+- Never place secrets in an article or dispatch payload.
+- Keep the Apps Script project private and minimize its editors.
+- Keep pull-request review between ingestion and publication.
+- Rotate the fine-grained token before it expires and after any suspected
+  exposure.
+- Do not force-push `main` or automation branches.
+- The exact `Medium` Doc is an instruction to prepare a review PR, not to bypass
+  editorial approval.
 
 ## Official references
 
-- [Google Drive for desktop: stream and mirror files](https://support.google.com/drive/answer/13401938)
-- [Google Drive API: export formats, including Markdown](https://developers.google.com/workspace/drive/api/guides/ref-export-formats)
-- [Google Drive API: search for files and folders](https://developers.google.com/workspace/drive/api/guides/search-files)
-- [Apps Script: installable and time-driven triggers](https://developers.google.com/apps-script/guides/triggers/installable)
-- [gdown project documentation](https://github.com/wkentaro/gdown)
-- [GitHub Actions workflow triggers](https://docs.github.com/en/actions/concepts/workflows-and-actions/workflows)
+- [Google Drive API: export a native Workspace document](https://developers.google.com/workspace/drive/api/reference/rest/v3/files/export)
+- [Google Drive export formats, including Markdown](https://developers.google.com/workspace/drive/api/guides/ref-export-formats)
+- [Apps Script URL Fetch service](https://developers.google.com/apps-script/guides/services/external)
+- [GitHub repository dispatch events](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#repository_dispatch)
+- [GitHub REST API: create a repository dispatch event](https://docs.github.com/en/rest/repos/repos#create-a-repository-dispatch-event)
+- [GitHub Actions secrets](https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions)
