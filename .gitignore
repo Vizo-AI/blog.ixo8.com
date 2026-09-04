@@ -4,6 +4,8 @@ _site
 .jekyll-metadata
 vendor
 .DS_Store
+.trace-mcp/
+.blog-publisher/
 
 # Astro / Node
 .astro

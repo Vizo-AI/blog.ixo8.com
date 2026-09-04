@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.vizo.blog-importer</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/env</string>
+    <string>node</string>
+    <string>REPOSITORY_PATH/scripts/import-drive-articles.mjs</string>
+    <string>--inbox</string>
+    <string>DRIVE_READY_MARKDOWN_PATH</string>
+    <string>--processed</string>
+    <string>DRIVE_IMPORTED_MARKDOWN_PATH</string>
+    <string>--failed</string>
+    <string>DRIVE_FAILED_MARKDOWN_PATH</string>
+    <string>--publish</string>
+    <string>pr</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>REPOSITORY_PATH</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>TOOL_SHIMS_DIRECTORY:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+
+  <key>StartInterval</key>
+  <integer>300</integer>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>REPOSITORY_PATH/.blog-publisher/importer.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>REPOSITORY_PATH/.blog-publisher/importer.error.log</string>
+</dict>
+</plist>

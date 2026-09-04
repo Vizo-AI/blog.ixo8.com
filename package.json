@@ -7,11 +7,13 @@
   },
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build && pagefind --site dist && npm run check:routes && npm run check:links",
+    "build": "npm run test:articles && astro build && pagefind --site dist && npm run check:routes && npm run check:links",
+    "articles:import": "node scripts/import-drive-articles.mjs",
     "check:links": "node scripts/check-internal-links.mjs",
     "check:routes": "node scripts/check-route-parity.mjs",
     "preview": "astro preview",
-    "check": "astro check"
+    "check": "astro check",
+    "test:articles": "node --test scripts/import-drive-articles.test.mjs"
   },
   "dependencies": {
     "@astrojs/check": "^0.9.10",
