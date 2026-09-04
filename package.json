@@ -13,7 +13,7 @@
     "check:routes": "node scripts/check-route-parity.mjs",
     "preview": "astro preview",
     "check": "astro check",
-    "test:articles": "node --test scripts/import-drive-articles.test.mjs"
+    "test:articles": "node --test scripts/*.test.mjs"
   },
   "dependencies": {
     "@astrojs/check": "^0.9.10",
