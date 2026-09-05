@@ -9,17 +9,19 @@ The research workflow creates this Drive hierarchy:
 
 ```text
 My Drive/
-└── AI Research Editor/
-    └── YYYY-MM/
-        └── YYYY-MM-DD/
-            ├── Canonical Article
-            ├── Executive Brief
-            ├── LinkedIn Concise
-            ├── LinkedIn Full
-            ├── Medium                 <- only this native Google Doc is used
-            ├── Short Summary
-            ├── Sources + QA
-            └── Teaser
+└── AI Content System/
+    └── AI Research Editor/
+        └── YYYY/
+            └── YYYY-MM/
+                └── YYYY-MM-DD/
+                    ├── Canonical Article
+                    ├── Executive Brief
+                    ├── LinkedIn Concise
+                    ├── LinkedIn Full
+                    ├── Medium          <- only this native Google Doc is used
+                    ├── Short Summary
+                    ├── Sources + QA
+                    └── Teaser
 ```
 
 The source may appear as `Medium.gdoc` on a computer. A `.gdoc` file is only a
@@ -33,7 +35,7 @@ Doc in Drive and exports its actual content to Markdown in memory.
 Scheduled research process (Monday, Wednesday, Friday at 08:00 Eastern)
         |
         v
-My Drive/AI Research Editor/YYYY-MM/YYYY-MM-DD/Medium
+My Drive/AI Content System/AI Research Editor/YYYY/YYYY-MM/YYYY-MM-DD/Medium
         |
         | Apps Script finds the native Google Doc and exports text/markdown
         v
@@ -70,10 +72,14 @@ Apps Script calculates today's names and traverses them automatically:
 
 ```text
 AI Research Editor        <- permanent ID supplied once
-└── 2026-09               <- found by name
-    └── 2026-09-04        <- found by name
-        └── Medium        <- exact native Google Doc found by name and MIME type
+└── 2026                  <- found by name
+    └── 2026-09           <- found by name
+        └── 2026-09-04    <- found by name
+            └── Medium    <- exact native Google Doc found by name and MIME type
 ```
+
+The `AI Content System` parent does not need a separate property because the
+saved ID points directly to its `AI Research Editor` child.
 
 To find the permanent folder ID, open `AI Research Editor` in the Drive browser.
 The folder ID is the value after `/folders/` in the URL. Treat it as private
@@ -248,7 +254,8 @@ duplicate body H1 because the site layout renders the frontmatter title.
 
 1. At 08:00 Eastern, the research workflow begins creating the dated documents.
 2. Apps Script checks only
-   `AI Research Editor/YYYY-MM/YYYY-MM-DD/Medium` during the morning window.
+   `AI Research Editor/YYYY/YYYY-MM/YYYY-MM-DD/Medium` during the morning
+   window.
 3. If the date folder or `Medium` is not ready, it records a waiting message and
    checks again later.
 4. Once found, Apps Script exports the native Doc as Markdown and dispatches it
@@ -327,9 +334,9 @@ Check these surfaces in order:
 Normal Apps Script messages include:
 
 ```text
-Waiting: Medium is not available in YYYY-MM/YYYY-MM-DD.
-Already exported: YYYY-MM/YYYY-MM-DD/Medium.
-Dispatched YYYY-MM/YYYY-MM-DD/Medium as YYYY-MM-DD-article-slug.md.
+Waiting: Medium is not available in YYYY/YYYY-MM/YYYY-MM-DD.
+Already exported: YYYY/YYYY-MM/YYYY-MM-DD/Medium.
+Dispatched YYYY/YYYY-MM/YYYY-MM-DD/Medium as YYYY-MM-DD-article-slug.md.
 ```
 
 ## Failure and recovery

@@ -65,7 +65,8 @@ vm.runInContext(`${source}\nglobalThis.exporterTestApi = {
   articleTitleFromMarkdown: articleTitleFromMarkdown_,
   dispatchArticleToGitHub: dispatchArticleToGitHub_,
   exportArticleForCalendarDate: exportArticleForCalendarDate_,
-  isPublishingWindow: isPublishingWindow_
+  isPublishingWindow: isPublishingWindow_,
+  sourcePathNames: sourcePathNames_
 };`, context);
 const api = context.exporterTestApi;
 
@@ -76,6 +77,13 @@ test('exporter selects a title from the first content line', () => {
 
 test('exporter creates a stable article slug', () => {
   assert.equal(api.articleSlug('GPT-6 Astra: What Changes?'), 'gpt-6-astra-what-changes');
+});
+
+test('exporter traverses year, year-month, and calendar-date folders', () => {
+  assert.deepEqual(
+    Array.from(api.sourcePathNames('2026-09-04')),
+    ['2026', '2026-09', '2026-09-04']
+  );
 });
 
 test('exporter dispatches Markdown without creating a Drive handoff file', () => {

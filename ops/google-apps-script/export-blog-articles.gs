@@ -2,7 +2,7 @@
  * Exports the scheduled Medium Google Doc as Markdown.
  *
  * Source hierarchy:
- *   AI Research Editor/YYYY-MM/YYYY-MM-DD/Medium
+ *   AI Research Editor/YYYY/YYYY-MM/YYYY-MM-DD/Medium
  *
  * Required Apps Script properties:
  *   AI_RESEARCH_EDITOR_ROOT_FOLDER_ID
@@ -152,6 +152,10 @@ function articleTitleFromMarkdown_(markdown) {
   return firstContentLine ? cleanMarkdownTitle_(firstContentLine) : undefined;
 }
 
+function sourcePathNames_(calendarDate) {
+  return [calendarDate.slice(0, 4), calendarDate.slice(0, 7), calendarDate];
+}
+
 function exportArticleForCalendarDate_(calendarDate) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(calendarDate)) {
     throw new Error(`Expected a YYYY-MM-DD calendar date, received: ${calendarDate}`);
@@ -163,29 +167,35 @@ function exportArticleForCalendarDate_(calendarDate) {
 
   const root = DriveApp.getFolderById(requiredProperty_('AI_RESEARCH_EDITOR_ROOT_FOLDER_ID'));
   const sourceName = optionalProperty_('BLOG_SOURCE_DOCUMENT_NAME', 'Medium');
-  const yearMonth = calendarDate.slice(0, 7);
-  const monthFolder = exactlyOneFolder_(root, yearMonth);
+  const [year, yearMonth] = sourcePathNames_(calendarDate);
+  const yearFolder = exactlyOneFolder_(root, year);
+  if (!yearFolder) {
+    console.log(`Waiting: ${root.getName()}/${year} does not exist yet.`);
+    return;
+  }
+
+  const monthFolder = exactlyOneFolder_(yearFolder, yearMonth);
   if (!monthFolder) {
-    console.log(`Waiting: ${root.getName()}/${yearMonth} does not exist yet.`);
+    console.log(`Waiting: ${root.getName()}/${year}/${yearMonth} does not exist yet.`);
     return;
   }
 
   const dateFolder = exactlyOneFolder_(monthFolder, calendarDate);
   if (!dateFolder) {
-    console.log(`Waiting: ${root.getName()}/${yearMonth}/${calendarDate} does not exist yet.`);
+    console.log(`Waiting: ${root.getName()}/${year}/${yearMonth}/${calendarDate} does not exist yet.`);
     return;
   }
 
   const source = exactlyOneGoogleDoc_(dateFolder, sourceName);
   if (!source) {
-    console.log(`Waiting: ${sourceName} is not available in ${yearMonth}/${calendarDate}.`);
+    console.log(`Waiting: ${sourceName} is not available in ${year}/${yearMonth}/${calendarDate}.`);
     return;
   }
 
   const identity = `exported:${source.getId()}:${source.getLastUpdated().getTime()}`;
   const scriptProperties = PropertiesService.getScriptProperties();
   if (scriptProperties.getProperty(identity)) {
-    console.log(`Already exported: ${yearMonth}/${calendarDate}/${sourceName}.`);
+    console.log(`Already exported: ${year}/${yearMonth}/${calendarDate}/${sourceName}.`);
     return;
   }
 
@@ -203,7 +213,7 @@ function exportArticleForCalendarDate_(calendarDate) {
   markdown = `<!-- vizo-drive-file-id: ${source.getId()} -->\n\n${markdown}\n`;
   dispatchArticleToGitHub_(outputName, markdown, source);
   scriptProperties.setProperty(identity, new Date().toISOString());
-  console.log(`Dispatched ${yearMonth}/${calendarDate}/${sourceName} as ${outputName}.`);
+  console.log(`Dispatched ${year}/${yearMonth}/${calendarDate}/${sourceName} as ${outputName}.`);
 }
 
 function exportArticleForDate_(date) {
@@ -252,10 +262,12 @@ function diagnoseConfiguration() {
 
   console.log(`Drive root accessible: yes (folder name: ${root.getName()})`);
   const calendarDate = Utilities.formatDate(new Date(), PUBLISH_TIME_ZONE, 'yyyy-MM-dd');
-  const yearMonth = calendarDate.slice(0, 7);
-  const monthFolder = exactlyOneFolder_(root, yearMonth);
+  const [year, yearMonth] = sourcePathNames_(calendarDate);
+  const yearFolder = exactlyOneFolder_(root, year);
+  const monthFolder = yearFolder ? exactlyOneFolder_(yearFolder, yearMonth) : undefined;
   const dateFolder = monthFolder ? exactlyOneFolder_(monthFolder, calendarDate) : undefined;
   const source = dateFolder ? exactlyOneGoogleDoc_(dateFolder, optionalProperty_('BLOG_SOURCE_DOCUMENT_NAME', 'Medium')) : undefined;
+  console.log(`Today's year folder found: ${yearFolder ? 'yes' : 'no'}`);
   console.log(`Today's month folder found: ${monthFolder ? 'yes' : 'no'}`);
   console.log(`Today's date folder found: ${dateFolder ? 'yes' : 'no'}`);
   console.log(`Today's Medium Google Doc found: ${source ? 'yes' : 'no'}`);
