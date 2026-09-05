@@ -22,17 +22,20 @@ const PUBLISH_WEEKDAYS = new Set(['Mon', 'Wed', 'Fri']);
 const PUBLISH_START_MINUTE = 8 * 60;
 const PUBLISH_END_MINUTE = 8 * 60 + 40;
 
-function requiredProperty(name) {
+function requiredProperty_(name) {
+  if (!name) {
+    throw new Error('Private helper called without a property name. Run exportTodaysArticleNow or installPublishingWindowTrigger.');
+  }
   const value = PropertiesService.getScriptProperties().getProperty(name);
   if (!value) throw new Error(`Missing required Script Property: ${name}`);
   return value;
 }
 
-function optionalProperty(name, fallback) {
+function optionalProperty_(name, fallback) {
   return PropertiesService.getScriptProperties().getProperty(name) || fallback;
 }
 
-function articleSlug(value) {
+function articleSlug_(value) {
   return value
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -44,7 +47,7 @@ function articleSlug(value) {
     .replace(/-+$/g, '');
 }
 
-function isPublishingWindow(date) {
+function isPublishingWindow_(date) {
   const weekday = Utilities.formatDate(date, PUBLISH_TIME_ZONE, 'EEE');
   const hour = Number(Utilities.formatDate(date, PUBLISH_TIME_ZONE, 'H'));
   const minute = Number(Utilities.formatDate(date, PUBLISH_TIME_ZONE, 'm'));
@@ -54,21 +57,21 @@ function isPublishingWindow(date) {
     && minuteOfDay <= PUBLISH_END_MINUTE;
 }
 
-function foldersNamed(parent, name) {
+function foldersNamed_(parent, name) {
   const matches = [];
   const folders = parent.getFoldersByName(name);
   while (folders.hasNext()) matches.push(folders.next());
   return matches;
 }
 
-function exactlyOneFolder(parent, name) {
-  const matches = foldersNamed(parent, name);
+function exactlyOneFolder_(parent, name) {
+  const matches = foldersNamed_(parent, name);
   if (matches.length === 0) return undefined;
   if (matches.length > 1) throw new Error(`More than one folder named ${name} exists under ${parent.getName()}.`);
   return matches[0];
 }
 
-function exactlyOneGoogleDoc(parent, name) {
+function exactlyOneGoogleDoc_(parent, name) {
   const matches = [];
   const files = parent.getFilesByName(name);
   while (files.hasNext()) {
@@ -80,7 +83,7 @@ function exactlyOneGoogleDoc(parent, name) {
   return matches[0];
 }
 
-function exportGoogleDocAsMarkdown(file) {
+function exportGoogleDocAsMarkdown_(file) {
   const endpoint = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(file.getId())}/export?mimeType=${encodeURIComponent('text/markdown')}`;
   const response = UrlFetchApp.fetch(endpoint, {
     headers: { Authorization: `Bearer ${ScriptApp.getOAuthToken()}` },
@@ -93,8 +96,8 @@ function exportGoogleDocAsMarkdown(file) {
   return response.getContentText('UTF-8');
 }
 
-function dispatchArticleToGitHub(outputName, markdown, source) {
-  const repository = optionalProperty('GITHUB_REPOSITORY', 'Vizo-AI/blog.ixo8.com');
+function dispatchArticleToGitHub_(outputName, markdown, source) {
+  const repository = optionalProperty_('GITHUB_REPOSITORY', 'Vizo-AI/blog.ixo8.com');
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) {
     throw new Error(`Invalid GITHUB_REPOSITORY value: ${repository}`);
   }
@@ -120,7 +123,7 @@ function dispatchArticleToGitHub(outputName, markdown, source) {
     contentType: 'application/json',
     headers: {
       Accept: 'application/vnd.github+json',
-      Authorization: `Bearer ${requiredProperty('GITHUB_DISPATCH_TOKEN')}`,
+      Authorization: `Bearer ${requiredProperty_('GITHUB_DISPATCH_TOKEN')}`,
       'X-GitHub-Api-Version': '2022-11-28'
     },
     payload: requestBody,
@@ -132,7 +135,7 @@ function dispatchArticleToGitHub(outputName, markdown, source) {
   }
 }
 
-function cleanMarkdownTitle(value) {
+function cleanMarkdownTitle_(value) {
   return value
     .replace(/^#+\s*/, '')
     .replace(/^\*\*(.*?)\*\*$/, '$1')
@@ -141,15 +144,15 @@ function cleanMarkdownTitle(value) {
     .trim();
 }
 
-function articleTitleFromMarkdown(markdown) {
+function articleTitleFromMarkdown_(markdown) {
   const firstContentLine = markdown
     .split('\n')
     .map((line) => line.trim())
     .find((line) => line && !line.startsWith('<!--'));
-  return firstContentLine ? cleanMarkdownTitle(firstContentLine) : undefined;
+  return firstContentLine ? cleanMarkdownTitle_(firstContentLine) : undefined;
 }
 
-function exportArticleForCalendarDate(calendarDate) {
+function exportArticleForCalendarDate_(calendarDate) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(calendarDate)) {
     throw new Error(`Expected a YYYY-MM-DD calendar date, received: ${calendarDate}`);
   }
@@ -158,22 +161,22 @@ function exportArticleForCalendarDate(calendarDate) {
     throw new Error(`Invalid calendar date: ${calendarDate}`);
   }
 
-  const root = DriveApp.getFolderById(requiredProperty('AI_RESEARCH_EDITOR_ROOT_FOLDER_ID'));
-  const sourceName = optionalProperty('BLOG_SOURCE_DOCUMENT_NAME', 'Medium');
+  const root = DriveApp.getFolderById(requiredProperty_('AI_RESEARCH_EDITOR_ROOT_FOLDER_ID'));
+  const sourceName = optionalProperty_('BLOG_SOURCE_DOCUMENT_NAME', 'Medium');
   const yearMonth = calendarDate.slice(0, 7);
-  const monthFolder = exactlyOneFolder(root, yearMonth);
+  const monthFolder = exactlyOneFolder_(root, yearMonth);
   if (!monthFolder) {
     console.log(`Waiting: ${root.getName()}/${yearMonth} does not exist yet.`);
     return;
   }
 
-  const dateFolder = exactlyOneFolder(monthFolder, calendarDate);
+  const dateFolder = exactlyOneFolder_(monthFolder, calendarDate);
   if (!dateFolder) {
     console.log(`Waiting: ${root.getName()}/${yearMonth}/${calendarDate} does not exist yet.`);
     return;
   }
 
-  const source = exactlyOneGoogleDoc(dateFolder, sourceName);
+  const source = exactlyOneGoogleDoc_(dateFolder, sourceName);
   if (!source) {
     console.log(`Waiting: ${sourceName} is not available in ${yearMonth}/${calendarDate}.`);
     return;
@@ -186,43 +189,43 @@ function exportArticleForCalendarDate(calendarDate) {
     return;
   }
 
-  let markdown = exportGoogleDocAsMarkdown(source).replace(/^\uFEFF/, '').trim();
-  const articleTitle = articleTitleFromMarkdown(markdown);
+  let markdown = exportGoogleDocAsMarkdown_(source).replace(/^\uFEFF/, '').trim();
+  const articleTitle = articleTitleFromMarkdown_(markdown);
   if (!articleTitle || articleTitle.toLowerCase() === sourceName.toLowerCase()) {
     throw new Error(`${sourceName} must begin with the article title, preferably formatted as Heading 1.`);
   }
 
   if (!/^#\s+/.test(markdown)) markdown = `# ${articleTitle}\n\n${markdown}`;
-  const slug = articleSlug(articleTitle);
+  const slug = articleSlug_(articleTitle);
   if (!slug) throw new Error(`Could not create a slug from article title: ${articleTitle}.`);
 
   const outputName = `${calendarDate}-${slug}.md`;
   markdown = `<!-- vizo-drive-file-id: ${source.getId()} -->\n\n${markdown}\n`;
-  dispatchArticleToGitHub(outputName, markdown, source);
+  dispatchArticleToGitHub_(outputName, markdown, source);
   scriptProperties.setProperty(identity, new Date().toISOString());
   console.log(`Dispatched ${yearMonth}/${calendarDate}/${sourceName} as ${outputName}.`);
 }
 
-function exportArticleForDate(date) {
+function exportArticleForDate_(date) {
   const calendarDate = Utilities.formatDate(date, PUBLISH_TIME_ZONE, 'yyyy-MM-dd');
-  exportArticleForCalendarDate(calendarDate);
+  exportArticleForCalendarDate_(calendarDate);
 }
 
 /** Scheduled entrypoint. It performs no Drive lookup outside the publishing window. */
 function exportScheduledArticle() {
   const now = new Date();
-  if (!isPublishingWindow(now)) return;
-  exportArticleForDate(now);
+  if (!isPublishingWindow_(now)) return;
+  exportArticleForDate_(now);
 }
 
 /** Manual recovery/test entrypoint. It ignores the publishing window. */
 function exportTodaysArticleNow() {
-  exportArticleForDate(new Date());
+  exportArticleForDate_(new Date());
 }
 
 /** Manual recovery entrypoint for BLOG_RECOVERY_DATE. It ignores the publishing window. */
 function exportRecoveryArticle() {
-  exportArticleForCalendarDate(requiredProperty('BLOG_RECOVERY_DATE'));
+  exportArticleForCalendarDate_(requiredProperty_('BLOG_RECOVERY_DATE'));
 }
 
 /** Install one lightweight five-minute trigger; date/time filtering happens in code. */

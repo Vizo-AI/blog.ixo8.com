@@ -79,6 +79,10 @@ To find the permanent folder ID, open `AI Research Editor` in the Drive browser.
 The folder ID is the value after `/folders/` in the URL. Treat it as private
 configuration and enter it only in Apps Script Project Settings.
 
+For example, `https://drive.google.com/drive/u/7/folders/` is only the account's
+folder view and does not contain an ID. Double-click `AI Research Editor` first;
+the correct URL must contain characters after `/folders/`.
+
 `BLOG_READY_FOLDER_ID` is no longer used.
 
 ## Repository components
@@ -167,6 +171,17 @@ must be a secret.
 11. Review but do not merge the first PR until the verification checklist below
     is complete.
 12. Return to Apps Script and run `installPublishingWindowTrigger` once.
+
+Do not select helper functions such as `requiredProperty_` in the function
+runner. The supported operator entrypoints are:
+
+```text
+exportTodaysArticleNow
+exportRecoveryArticle
+installPublishingWindowTrigger
+```
+
+`exportScheduledArticle` is reserved for the installed time trigger.
 
 The installed Apps Script trigger wakes every five minutes because Apps Script
 does not offer a compact M/W/F 30-minute recurrence. The function returns
@@ -321,6 +336,7 @@ Dispatched YYYY-MM/YYYY-MM-DD/Medium as YYYY-MM-DD-article-slug.md.
 | Symptom | Likely cause | Recovery |
 | --- | --- | --- |
 | No dated folder found | Research generation is late or the Apps Script time zone is wrong | Inspect the research schedule and project time zone; run today's export manually when ready |
+| `Missing required Script Property: undefined` | A helper function was run directly without its internal argument | Select `exportTodaysArticleNow`; replace the script with the current version, whose helpers are private |
 | `Medium` not found but siblings exist | It is late, renamed, or not a native Google Doc | Wait, restore the exact name, or deliberately change `BLOG_SOURCE_DOCUMENT_NAME` |
 | More than one matching folder or Doc | Duplicate names make selection ambiguous | Rename the duplicate; the exporter intentionally refuses to guess |
 | Title error | The first content line is empty, generic, or not the real title | Put the real article title first, preferably as Heading 1 |

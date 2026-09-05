@@ -61,11 +61,11 @@ const context = vm.createContext({
   Utilities: utilities
 });
 vm.runInContext(`${source}\nglobalThis.exporterTestApi = {
-  articleSlug,
-  articleTitleFromMarkdown,
-  dispatchArticleToGitHub,
-  exportArticleForCalendarDate,
-  isPublishingWindow
+  articleSlug: articleSlug_,
+  articleTitleFromMarkdown: articleTitleFromMarkdown_,
+  dispatchArticleToGitHub: dispatchArticleToGitHub_,
+  exportArticleForCalendarDate: exportArticleForCalendarDate_,
+  isPublishingWindow: isPublishingWindow_
 };`, context);
 const api = context.exporterTestApi;
 
