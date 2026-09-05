@@ -228,6 +228,39 @@ function exportRecoveryArticle() {
   exportArticleForCalendarDate_(requiredProperty_('BLOG_RECOVERY_DATE'));
 }
 
+/** Safe setup diagnostic. It never logs property values or tokens. */
+function diagnoseConfiguration() {
+  const properties = PropertiesService.getScriptProperties();
+  const rootId = properties.getProperty('AI_RESEARCH_EDITOR_ROOT_FOLDER_ID');
+  const dispatchToken = properties.getProperty('GITHUB_DISPATCH_TOKEN');
+  console.log(`AI_RESEARCH_EDITOR_ROOT_FOLDER_ID configured: ${rootId ? 'yes' : 'no'}`);
+  console.log(`GITHUB_DISPATCH_TOKEN configured: ${dispatchToken ? 'yes' : 'no'}`);
+
+  const missing = [];
+  if (!rootId) missing.push('AI_RESEARCH_EDITOR_ROOT_FOLDER_ID');
+  if (!dispatchToken) missing.push('GITHUB_DISPATCH_TOKEN');
+  if (missing.length > 0) {
+    throw new Error(`Missing required Script Properties: ${missing.join(', ')}`);
+  }
+
+  let root;
+  try {
+    root = DriveApp.getFolderById(rootId);
+  } catch {
+    throw new Error('AI_RESEARCH_EDITOR_ROOT_FOLDER_ID must be only the identifier after /folders/ in the AI Research Editor URL, not the complete URL.');
+  }
+
+  console.log(`Drive root accessible: yes (folder name: ${root.getName()})`);
+  const calendarDate = Utilities.formatDate(new Date(), PUBLISH_TIME_ZONE, 'yyyy-MM-dd');
+  const yearMonth = calendarDate.slice(0, 7);
+  const monthFolder = exactlyOneFolder_(root, yearMonth);
+  const dateFolder = monthFolder ? exactlyOneFolder_(monthFolder, calendarDate) : undefined;
+  const source = dateFolder ? exactlyOneGoogleDoc_(dateFolder, optionalProperty_('BLOG_SOURCE_DOCUMENT_NAME', 'Medium')) : undefined;
+  console.log(`Today's month folder found: ${monthFolder ? 'yes' : 'no'}`);
+  console.log(`Today's date folder found: ${dateFolder ? 'yes' : 'no'}`);
+  console.log(`Today's Medium Google Doc found: ${source ? 'yes' : 'no'}`);
+}
+
 /** Install one lightweight five-minute trigger; date/time filtering happens in code. */
 function installPublishingWindowTrigger() {
   for (const trigger of ScriptApp.getProjectTriggers()) {

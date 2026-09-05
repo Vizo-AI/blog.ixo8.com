@@ -178,6 +178,7 @@ runner. The supported operator entrypoints are:
 ```text
 exportTodaysArticleNow
 exportRecoveryArticle
+diagnoseConfiguration
 installPublishingWindowTrigger
 ```
 
@@ -337,6 +338,7 @@ Dispatched YYYY-MM/YYYY-MM-DD/Medium as YYYY-MM-DD-article-slug.md.
 | --- | --- | --- |
 | No dated folder found | Research generation is late or the Apps Script time zone is wrong | Inspect the research schedule and project time zone; run today's export manually when ready |
 | `Missing required Script Property: undefined` | A helper function was run directly without its internal argument | Select `exportTodaysArticleNow`; replace the script with the current version, whose helpers are private |
+| Diagnostic says the root ID is invalid | A complete URL, empty `/folders/` URL, or wrong folder value was saved | Open `AI Research Editor` and save only the characters after `/folders/` |
 | `Medium` not found but siblings exist | It is late, renamed, or not a native Google Doc | Wait, restore the exact name, or deliberately change `BLOG_SOURCE_DOCUMENT_NAME` |
 | More than one matching folder or Doc | Duplicate names make selection ambiguous | Rename the duplicate; the exporter intentionally refuses to guess |
 | Title error | The first content line is empty, generic, or not the real title | Put the real article title first, preferably as Heading 1 |
